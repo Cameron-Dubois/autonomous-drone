@@ -1,0 +1,2 @@
+source /home/stephenwb/Projects/autonomous-drone/build/gdbinit/symbols
+source /home/stephenwb/Projects/autonomous-drone/build/gdbinit/connect

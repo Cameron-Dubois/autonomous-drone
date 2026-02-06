@@ -1,0 +1,150 @@
+[0/1] Re-running CMake...
+-- Building ESP-IDF components for target esp32c3
+-- Project sdkconfig file /home/stephenwb/Projects/autonomous-drone/sdkconfig
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/riscv/ld/rom.api.ld
+-- App "autonomous-drone" version: 2099aea-dirty
+-- Adding linker script /home/stephenwb/Projects/autonomous-drone/build/esp-idf/esp_system/ld/memory.ld
+-- Adding linker script /home/stephenwb/Projects/autonomous-drone/build/esp-idf/esp_system/ld/sections.ld.in
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.api.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.bt_funcs.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.libgcc.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.version.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.eco3.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.eco3_bt_funcs.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/ld/esp32c3.rom.newlib.ld
+-- Adding linker script /home/stephenwb/esp/esp-idf/components/soc/esp32c3/ld/esp32c3.peripherals.ld
+-- Components: app_trace app_update bootloader bootloader_support bt cmock console cxx driver efuse esp-tls esp_adc esp_app_format esp_bootloader_format esp_coex esp_common esp_driver_ana_cmpr esp_driver_cam esp_driver_dac esp_driver_gpio esp_driver_gptimer esp_driver_i2c esp_driver_i2s esp_driver_isp esp_driver_jpeg esp_driver_ledc esp_driver_mcpwm esp_driver_parlio esp_driver_pcnt esp_driver_ppa esp_driver_rmt esp_driver_sdio esp_driver_sdm esp_driver_sdmmc esp_driver_sdspi esp_driver_spi esp_driver_touch_sens esp_driver_tsens esp_driver_uart esp_driver_usb_serial_jtag esp_eth esp_event esp_gdbstub esp_hid esp_http_client esp_http_server esp_https_ota esp_https_server esp_hw_support esp_lcd esp_local_ctrl esp_mm esp_netif esp_netif_stack esp_partition esp_phy esp_pm esp_psram esp_ringbuf esp_rom esp_security esp_system esp_timer esp_vfs_console esp_wifi espcoredump esptool_py fatfs freertos hal heap http_parser idf_test ieee802154 json log lwip main mbedtls mqtt newlib nvs_flash nvs_sec_provider openthread partition_table protobuf-c protocomm pthread riscv rt sdmmc soc spi_flash spiffs tcp_transport ulp unity usb vfs wear_levelling wifi_provisioning wpa_supplicant
+-- Component paths: /home/stephenwb/esp/esp-idf/components/app_trace /home/stephenwb/esp/esp-idf/components/app_update /home/stephenwb/esp/esp-idf/components/bootloader /home/stephenwb/esp/esp-idf/components/bootloader_support /home/stephenwb/esp/esp-idf/components/bt /home/stephenwb/esp/esp-idf/components/cmock /home/stephenwb/esp/esp-idf/components/console /home/stephenwb/esp/esp-idf/components/cxx /home/stephenwb/esp/esp-idf/components/driver /home/stephenwb/esp/esp-idf/components/efuse /home/stephenwb/esp/esp-idf/components/esp-tls /home/stephenwb/esp/esp-idf/components/esp_adc /home/stephenwb/esp/esp-idf/components/esp_app_format /home/stephenwb/esp/esp-idf/components/esp_bootloader_format /home/stephenwb/esp/esp-idf/components/esp_coex /home/stephenwb/esp/esp-idf/components/esp_common /home/stephenwb/esp/esp-idf/components/esp_driver_ana_cmpr /home/stephenwb/esp/esp-idf/components/esp_driver_cam /home/stephenwb/esp/esp-idf/components/esp_driver_dac /home/stephenwb/esp/esp-idf/components/esp_driver_gpio /home/stephenwb/esp/esp-idf/components/esp_driver_gptimer /home/stephenwb/esp/esp-idf/components/esp_driver_i2c /home/stephenwb/esp/esp-idf/components/esp_driver_i2s /home/stephenwb/esp/esp-idf/components/esp_driver_isp /home/stephenwb/esp/esp-idf/components/esp_driver_jpeg /home/stephenwb/esp/esp-idf/components/esp_driver_ledc /home/stephenwb/esp/esp-idf/components/esp_driver_mcpwm /home/stephenwb/esp/esp-idf/components/esp_driver_parlio /home/stephenwb/esp/esp-idf/components/esp_driver_pcnt /home/stephenwb/esp/esp-idf/components/esp_driver_ppa /home/stephenwb/esp/esp-idf/components/esp_driver_rmt /home/stephenwb/esp/esp-idf/components/esp_driver_sdio /home/stephenwb/esp/esp-idf/components/esp_driver_sdm /home/stephenwb/esp/esp-idf/components/esp_driver_sdmmc /home/stephenwb/esp/esp-idf/components/esp_driver_sdspi /home/stephenwb/esp/esp-idf/components/esp_driver_spi /home/stephenwb/esp/esp-idf/components/esp_driver_touch_sens /home/stephenwb/esp/esp-idf/components/esp_driver_tsens /home/stephenwb/esp/esp-idf/components/esp_driver_uart /home/stephenwb/esp/esp-idf/components/esp_driver_usb_serial_jtag /home/stephenwb/esp/esp-idf/components/esp_eth /home/stephenwb/esp/esp-idf/components/esp_event /home/stephenwb/esp/esp-idf/components/esp_gdbstub /home/stephenwb/esp/esp-idf/components/esp_hid /home/stephenwb/esp/esp-idf/components/esp_http_client /home/stephenwb/esp/esp-idf/components/esp_http_server /home/stephenwb/esp/esp-idf/components/esp_https_ota /home/stephenwb/esp/esp-idf/components/esp_https_server /home/stephenwb/esp/esp-idf/components/esp_hw_support /home/stephenwb/esp/esp-idf/components/esp_lcd /home/stephenwb/esp/esp-idf/components/esp_local_ctrl /home/stephenwb/esp/esp-idf/components/esp_mm /home/stephenwb/esp/esp-idf/components/esp_netif /home/stephenwb/esp/esp-idf/components/esp_netif_stack /home/stephenwb/esp/esp-idf/components/esp_partition /home/stephenwb/esp/esp-idf/components/esp_phy /home/stephenwb/esp/esp-idf/components/esp_pm /home/stephenwb/esp/esp-idf/components/esp_psram /home/stephenwb/esp/esp-idf/components/esp_ringbuf /home/stephenwb/esp/esp-idf/components/esp_rom /home/stephenwb/esp/esp-idf/components/esp_security /home/stephenwb/esp/esp-idf/components/esp_system /home/stephenwb/esp/esp-idf/components/esp_timer /home/stephenwb/esp/esp-idf/components/esp_vfs_console /home/stephenwb/esp/esp-idf/components/esp_wifi /home/stephenwb/esp/esp-idf/components/espcoredump /home/stephenwb/esp/esp-idf/components/esptool_py /home/stephenwb/esp/esp-idf/components/fatfs /home/stephenwb/esp/esp-idf/components/freertos /home/stephenwb/esp/esp-idf/components/hal /home/stephenwb/esp/esp-idf/components/heap /home/stephenwb/esp/esp-idf/components/http_parser /home/stephenwb/esp/esp-idf/components/idf_test /home/stephenwb/esp/esp-idf/components/ieee802154 /home/stephenwb/esp/esp-idf/components/json /home/stephenwb/esp/esp-idf/components/log /home/stephenwb/esp/esp-idf/components/lwip /home/stephenwb/Projects/autonomous-drone/main /home/stephenwb/esp/esp-idf/components/mbedtls /home/stephenwb/esp/esp-idf/components/mqtt /home/stephenwb/esp/esp-idf/components/newlib /home/stephenwb/esp/esp-idf/components/nvs_flash /home/stephenwb/esp/esp-idf/components/nvs_sec_provider /home/stephenwb/esp/esp-idf/components/openthread /home/stephenwb/esp/esp-idf/components/partition_table /home/stephenwb/esp/esp-idf/components/protobuf-c /home/stephenwb/esp/esp-idf/components/protocomm /home/stephenwb/esp/esp-idf/components/pthread /home/stephenwb/esp/esp-idf/components/riscv /home/stephenwb/esp/esp-idf/components/rt /home/stephenwb/esp/esp-idf/components/sdmmc /home/stephenwb/esp/esp-idf/components/soc /home/stephenwb/esp/esp-idf/components/spi_flash /home/stephenwb/esp/esp-idf/components/spiffs /home/stephenwb/esp/esp-idf/components/tcp_transport /home/stephenwb/esp/esp-idf/components/ulp /home/stephenwb/esp/esp-idf/components/unity /home/stephenwb/esp/esp-idf/components/usb /home/stephenwb/esp/esp-idf/components/vfs /home/stephenwb/esp/esp-idf/components/wear_levelling /home/stephenwb/esp/esp-idf/components/wifi_provisioning /home/stephenwb/esp/esp-idf/components/wpa_supplicant
+-- Configuring done (1.7s)
+-- Generating done (0.2s)
+-- Build files have been written to: /home/stephenwb/Projects/autonomous-drone/build
+[1/24] Building C object esp-idf/esp_app_format/CMakeFiles/__idf_esp_app_format.dir/esp_app_desc.c.obj
+[2/24] Linking C static library esp-idf/esp_app_format/libesp_app_format.a
+[3/24] Linking C static library esp-idf/cmock/libcmock.a
+[4/24] Linking C static library esp-idf/protobuf-c/libprotobuf-c.a
+[5/24] Linking C static library esp-idf/nvs_sec_provider/libnvs_sec_provider.a
+[6/24] Linking C static library esp-idf/rt/librt.a
+[7/24] Linking C static library esp-idf/wear_levelling/libwear_levelling.a
+[8/24] Linking C static library esp-idf/mqtt/libmqtt.a
+[9/24] Linking C static library esp-idf/json/libjson.a
+[10/24] Linking C static library esp-idf/spiffs/libspiffs.a
+[11/24] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj
+FAILED: esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj 
+/home/stephenwb/.espressif/tools/riscv32-esp-elf/esp-14.2.0_20241119/riscv32-esp-elf/bin/riscv32-esp-elf-gcc -DESP_PLATFORM -DIDF_VER=\"v5.4.1-dirty\" -DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE -DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ -D_GLIBCXX_HAVE_POSIX_SEMAPHORE -D_GLIBCXX_USE_POSIX_SEMAPHORE -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS -I/home/stephenwb/Projects/autonomous-drone/build/config -I/home/stephenwb/esp/esp-idf/components/newlib/platform_include -I/home/stephenwb/esp/esp-idf/components/freertos/config/include -I/home/stephenwb/esp/esp-idf/components/freertos/config/include/freertos -I/home/stephenwb/esp/esp-idf/components/freertos/config/riscv/include -I/home/stephenwb/esp/esp-idf/components/freertos/FreeRTOS-Kernel/include -I/home/stephenwb/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/riscv/include -I/home/stephenwb/esp/esp-idf/components/freertos/FreeRTOS-Kernel/portable/riscv/include/freertos -I/home/stephenwb/esp/esp-idf/components/freertos/esp_additions/include -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/include -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/include/soc -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/include/soc/esp32c3 -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/dma/include -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/ldo/include -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/debug_probe/include -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/port/esp32c3/. -I/home/stephenwb/esp/esp-idf/components/esp_hw_support/port/esp32c3/include -I/home/stephenwb/esp/esp-idf/components/heap/include -I/home/stephenwb/esp/esp-idf/components/heap/tlsf -I/home/stephenwb/esp/esp-idf/components/log/include -I/home/stephenwb/esp/esp-idf/components/soc/include -I/home/stephenwb/esp/esp-idf/components/soc/esp32c3 -I/home/stephenwb/esp/esp-idf/components/soc/esp32c3/include -I/home/stephenwb/esp/esp-idf/components/soc/esp32c3/register -I/home/stephenwb/esp/esp-idf/components/hal/platform_port/include -I/home/stephenwb/esp/esp-idf/components/hal/esp32c3/include -I/home/stephenwb/esp/esp-idf/components/hal/include -I/home/stephenwb/esp/esp-idf/components/esp_rom/include -I/home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/include -I/home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3/include/esp32c3 -I/home/stephenwb/esp/esp-idf/components/esp_rom/esp32c3 -I/home/stephenwb/esp/esp-idf/components/esp_common/include -I/home/stephenwb/esp/esp-idf/components/esp_system/include -I/home/stephenwb/esp/esp-idf/components/esp_system/port/soc -I/home/stephenwb/esp/esp-idf/components/esp_system/port/include/riscv -I/home/stephenwb/esp/esp-idf/components/esp_system/port/include/private -I/home/stephenwb/esp/esp-idf/components/riscv/include -I/home/stephenwb/esp/esp-idf/components/lwip/include -I/home/stephenwb/esp/esp-idf/components/lwip/include/apps -I/home/stephenwb/esp/esp-idf/components/lwip/include/apps/sntp -I/home/stephenwb/esp/esp-idf/components/lwip/lwip/src/include -I/home/stephenwb/esp/esp-idf/components/lwip/port/include -I/home/stephenwb/esp/esp-idf/components/lwip/port/freertos/include -I/home/stephenwb/esp/esp-idf/components/lwip/port/esp32xx/include -I/home/stephenwb/esp/esp-idf/components/lwip/port/esp32xx/include/arch -I/home/stephenwb/esp/esp-idf/components/lwip/port/esp32xx/include/sys -I/home/stephenwb/esp/esp-idf/components/spi_flash/include -I/home/stephenwb/esp/esp-idf/components/esp_driver_ledc/include -march=rv32imc_zicsr_zifencei  -fdiagnostics-color=always -ffunction-sections -fdata-sections -Wall -Werror=all -Wno-error=unused-function -Wno-error=unused-variable -Wno-error=unused-but-set-variable -Wno-error=deprecated-declarations -Wextra -Wno-error=extra -Wno-unused-parameter -Wno-sign-compare -Wno-enum-conversion -gdwarf-4 -ggdb -nostartfiles -Og -fno-shrink-wrap -fmacro-prefix-map=/home/stephenwb/Projects/autonomous-drone=. -fmacro-prefix-map=/home/stephenwb/esp/esp-idf=/IDF -fstrict-volatile-bitfields -fno-jump-tables -fno-tree-switch-conversion -std=gnu17 -Wno-old-style-declaration -MD -MT esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj -MF esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj.d -o esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj -c /home/stephenwb/Projects/autonomous-drone/main/main.c
+In file included from /home/stephenwb/Projects/autonomous-drone/main/main.c:2:
+/home/stephenwb/esp/esp-idf/components/esp_driver_ledc/include/driver/ledc.h:12:10: fatal error: driver/gpio.h: No such file or directory
+   12 | #include "driver/gpio.h"
+      |          ^~~~~~~~~~~~~~~
+compilation terminated.
+[12/24] Linking C static library esp-idf/protocomm/libprotocomm.a
+[13/24] Linking C static library esp-idf/fatfs/libfatfs.a
+[14/24] Performing build step for 'bootloader'
+[1/101] Generating project_elf_src_esp32c3.c
+[2/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/interrupts.c.obj
+[3/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/uart_periph.c.obj
+[4/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/adc_periph.c.obj
+[5/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/dedic_gpio_periph.c.obj
+[6/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/gdma_periph.c.obj
+[7/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/rmt_periph.c.obj
+[8/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/sdm_periph.c.obj
+[9/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/twai_periph.c.obj
+[10/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/dport_access_common.c.obj
+[11/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/gpio_periph.c.obj
+[12/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/spi_periph.c.obj
+[13/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/ledc_periph.c.obj
+[14/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/i2s_periph.c.obj
+[15/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/i2c_periph.c.obj
+[16/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/temperature_sensor_periph.c.obj
+[17/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/timer_periph.c.obj
+[18/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/mpi_periph.c.obj
+[19/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/esp32c3/wdt_periph.c.obj
+[20/101] Building C object CMakeFiles/bootloader.elf.dir/project_elf_src_esp32c3.c.obj
+[21/101] Building C object esp-idf/soc/CMakeFiles/__idf_soc.dir/lldesc.c.obj
+[22/101] Building C object esp-idf/hal/CMakeFiles/__idf_hal.dir/efuse_hal.c.obj
+[23/101] Building C object esp-idf/hal/CMakeFiles/__idf_hal.dir/esp32c3/efuse_hal.c.obj
+[24/101] Building C object esp-idf/esp_bootloader_format/CMakeFiles/__idf_esp_bootloader_format.dir/esp_bootloader_desc.c.obj
+[25/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_mem.c.obj
+[26/101] Building C object esp-idf/hal/CMakeFiles/__idf_hal.dir/hal_utils.c.obj
+[27/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_clock_loader.c.obj
+[28/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_random.c.obj
+[29/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/secure_boot.c.obj
+[30/101] Building C object esp-idf/hal/CMakeFiles/__idf_hal.dir/mmu_hal.c.obj
+[31/101] Building C object esp-idf/hal/CMakeFiles/__idf_hal.dir/cache_hal.c.obj
+[32/101] Building C object esp-idf/spi_flash/CMakeFiles/__idf_spi_flash.dir/spi_flash_wrap.c.obj
+[33/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_clock_init.c.obj
+[34/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_efuse.c.obj
+[35/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_random_esp32c3.c.obj
+[36/101] Building C object esp-idf/hal/CMakeFiles/__idf_hal.dir/wdt_hal_iram.c.obj
+[37/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/flash_encrypt.c.obj
+[38/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/flash_partitions.c.obj
+[39/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_console_loader.c.obj
+[40/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/esp32c3/bootloader_sha.c.obj
+[41/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/esp32c3/bootloader_soc.c.obj
+[42/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/esp32c3/esp_efuse_table.c.obj
+[43/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_common.c.obj
+[44/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_common_loader.c.obj
+[45/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/bootloader_flash/src/flash_qio_mode.c.obj
+[46/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_panic.c.obj
+[47/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/esp32c3/esp_efuse_fields.c.obj
+[48/101] Building C object esp-idf/esp_system/CMakeFiles/__idf_esp_system.dir/esp_err.c.obj
+[49/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_init.c.obj
+[50/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/esp32c3/esp_efuse_rtc_calib.c.obj
+[51/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/bootloader_flash/src/bootloader_flash_config_esp32c3.c.obj
+[52/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/src/esp_efuse_fields.c.obj
+[53/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/esp_cpu_intr.c.obj
+[54/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_crc.c.obj
+[55/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_console.c.obj
+[56/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/esp32c3/bootloader_esp32c3.c.obj
+[57/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_efuse.c.obj
+[58/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_spiflash.c.obj
+[59/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/esp_memory_utils.c.obj
+[60/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_systimer.c.obj
+[61/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_gpio.c.obj
+[62/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/cpu_region_protect.c.obj
+[63/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/esp32c3/esp_efuse_utility.c.obj
+[64/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/chip_info.c.obj
+[65/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/rtc_clk_init.c.obj
+[66/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/cpu.c.obj
+[67/101] Building C object esp-idf/log/CMakeFiles/__idf_log.dir/src/log_timestamp_common.c.obj
+[68/101] Building C object esp-idf/log/CMakeFiles/__idf_log.dir/src/noos/log_timestamp.c.obj
+[69/101] Building C object esp-idf/esp_common/CMakeFiles/__idf_esp_common.dir/src/esp_err_to_name.c.obj
+[70/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_sys.c.obj
+[71/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_uart.c.obj
+[72/101] Building C object esp-idf/log/CMakeFiles/__idf_log.dir/src/noos/log_lock.c.obj
+[73/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/src/esp_efuse_api.c.obj
+[74/101] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/bootloader_start.c.obj
+[75/101] Linking C static library esp-idf/log/liblog.a
+[76/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/src/efuse_controller/keys/with_key_purposes/esp_efuse_api_key.c.obj
+[77/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/bootloader_flash/src/bootloader_flash.c.obj
+[78/101] Building C object esp-idf/efuse/CMakeFiles/__idf_efuse.dir/src/esp_efuse_utility.c.obj
+[79/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/rtc_sleep.c.obj
+[80/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/rtc_time.c.obj
+[81/101] Building C object esp-idf/esp_rom/CMakeFiles/__idf_esp_rom.dir/patches/esp_rom_print.c.obj
+[82/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/rtc_init.c.obj
+[83/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/bootloader_utility.c.obj
+[84/101] Linking C static library esp-idf/esp_rom/libesp_rom.a
+[85/101] Linking C static library esp-idf/esp_common/libesp_common.a
+[86/101] Building C object esp-idf/bootloader_support/CMakeFiles/__idf_bootloader_support.dir/src/esp_image_format.c.obj
+[87/101] Building C object esp-idf/esp_hw_support/CMakeFiles/__idf_esp_hw_support.dir/port/esp32c3/rtc_clk.c.obj
+[88/101] Linking C static library esp-idf/esp_hw_support/libesp_hw_support.a
+[89/101] Linking C static library esp-idf/esp_system/libesp_system.a
+[90/101] Linking C static library esp-idf/efuse/libefuse.a
+[91/101] Linking C static library esp-idf/bootloader_support/libbootloader_support.a
+[92/101] Linking C static library esp-idf/esp_bootloader_format/libesp_bootloader_format.a
+[93/101] Linking C static library esp-idf/spi_flash/libspi_flash.a
+[94/101] Linking C static library esp-idf/hal/libhal.a
+[95/101] Building C object esp-idf/micro-ecc/CMakeFiles/__idf_micro-ecc.dir/uECC_verify_antifault.c.obj
+[96/101] Linking C static library esp-idf/micro-ecc/libmicro-ecc.a
+[97/101] Linking C static library esp-idf/soc/libsoc.a
+[98/101] Linking C static library esp-idf/main/libmain.a
+[99/101] Linking C executable bootloader.elf
+[100/101] Generating binary image from built executable
+esptool.py v4.11.0
+Creating esp32c3 image...
+Merged 2 ELF sections
+Successfully created esp32c3 image.
+Generated /home/stephenwb/Projects/autonomous-drone/build/bootloader/bootloader.bin
+[101/101] cd /home/stephenwb/Projects/autonomous-drone/build/bootloader/esp-idf/esptool_py && /home/stephenwb/.espressif/python_env/idf5.4_py3.12_env/bin/python /home/stephenwb/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /home/stephenwb/Projects/autonomous-drone/build/bootloader/bootloader.bin
+Bootloader binary size 0x5160 bytes. 0x2ea0 bytes (36%) free.
+ninja: build stopped: subcommand failed.

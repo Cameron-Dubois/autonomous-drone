@@ -1,0 +1,198 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\setstretch{1.1}
+
+\title{Autonomous Drone System Architecture}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Overview}
+
+This document describes the overall system architecture for the autonomous drone project. The system is designed as a modular, layered architecture that separates hardware control, sensing, communication, vision, autonomy, and user interaction. This separation allows different subsystems to be developed, tested, and upgraded independently.
+
+The system uses a hybrid communication model:
+\begin{itemize}
+    \item \textbf{Bluetooth Low Energy (BLE)} for control, telemetry, configuration, and low-latency signaling.
+    \item \textbf{Wi-Fi} for high-bandwidth data such as camera images and video streams.
+\end{itemize}
+
+The architecture supports both manual operation and autonomous behavior, with the ability to scale from basic monitoring to advanced vision-based autonomy.
+
+\section{System Components}
+
+\subsection{On-Drone Components}
+
+\begin{itemize}
+    \item ESP32 microcontroller with attached camera module.
+    \item Inertial Measurement Unit (IMU) for orientation and motion sensing.
+    \item Power system including battery, voltage regulation, and monitoring.
+    \item Optional sensors such as GPS, barometer, range sensors, or LiDAR.
+    \item Optional flight controller (separate from ESP32) for stabilization and motor control.
+\end{itemize}
+
+\subsection{Ground Components}
+
+\begin{itemize}
+    \item Mobile application running on a smartphone.
+    \item Optional external compute device for advanced processing (laptop, Raspberry Pi, Jetson).
+\end{itemize}
+
+\subsection{Supporting Infrastructure}
+
+\begin{itemize}
+    \item Version-controlled monorepo containing firmware, mobile app, documentation, and tooling.
+\end{itemize}
+
+\section{High-Level Architecture}
+
+The system is divided into four major layers:
+\begin{enumerate}
+    \item Physical and Sensor Layer
+    \item Embedded Control Layer
+    \item Communication Layer
+    \item Ground Control and Autonomy Layer
+\end{enumerate}
+
+Each layer has clearly defined responsibilities and interfaces.
+
+\section{Physical and Sensor Layer}
+
+This layer includes all physical hardware mounted on the drone.
+
+\subsection*{Responsibilities}
+
+\begin{itemize}
+    \item Provide raw sensor data such as acceleration, angular velocity, position, altitude, and battery state.
+    \item Capture visual data through the onboard camera.
+    \item Deliver electrical power safely and reliably to all components.
+\end{itemize}
+
+This layer is hardware-specific and does not contain application logic.
+
+\section{Embedded Control Layer (ESP32 Firmware)}
+
+The ESP32 firmware acts as the primary embedded controller and hardware interface.
+
+\subsection*{Responsibilities}
+
+\begin{itemize}
+    \item Initialize and manage all connected sensors.
+    \item Manage camera operation and frame capture.
+    \item Execute low-level state management and safety checks.
+    \item Provide real-time telemetry describing the system state.
+    \item Accept commands from external controllers and translate them into hardware actions.
+    \item Interface with a separate flight controller if present (via UART or other serial protocol).
+\end{itemize}
+
+The firmware is designed to be event-driven and non-blocking to ensure responsiveness and stability.
+
+\section{Communication Layer}
+
+The communication layer defines how data moves between the drone and external systems.
+
+\subsection{Bluetooth Low Energy (BLE)}
+
+\begin{itemize}
+    \item Used for command and control.
+    \item Used for configuration and parameter updates.
+    \item Used for telemetry notifications.
+    \item Optimized for low bandwidth, low latency, and reliability.
+\end{itemize}
+
+\subsection{Wi-Fi}
+
+\begin{itemize}
+    \item Used for high-bandwidth data transfer.
+    \item Primary transport for camera images and video streams.
+    \item Supports HTTP and streaming protocols.
+\end{itemize}
+
+This dual-channel approach ensures that control and telemetry remain functional even when high-bandwidth camera data is active.
+
+\section{Ground Control and Autonomy Layer}
+
+This layer consists of software running off-drone.
+
+\subsection{Mobile Application}
+
+\begin{itemize}
+    \item Acts as the primary user interface.
+    \item Displays telemetry and system status.
+    \item Displays live camera output.
+    \item Allows manual control and mode selection.
+    \item Sends configuration and mission commands to the drone.
+\end{itemize}
+
+\subsection{Autonomy and Vision Processing}
+
+\begin{itemize}
+    \item May run on the mobile device or an external compute unit.
+    \item Processes camera data to extract environmental or target information.
+    \item Generates high-level guidance commands rather than direct motor control.
+    \item Supports behaviors such as object tracking, waypoint navigation, or obstacle avoidance.
+\end{itemize}
+
+\section{Control Flow}
+
+\subsection{Manual Control Flow}
+
+\begin{enumerate}
+    \item User inputs commands in the mobile app.
+    \item Commands are sent to the drone via BLE.
+    \item ESP32 interprets commands and updates system state.
+    \item Telemetry is sent back to the app via BLE.
+\end{enumerate}
+
+\subsection{Autonomous Control Flow}
+
+\begin{enumerate}
+    \item Camera data is streamed over Wi-Fi.
+    \item Vision or autonomy logic processes the data.
+    \item High-level commands are generated and sent to the ESP32.
+    \item ESP32 enforces safety constraints and forwards commands to hardware or a flight controller.
+\end{enumerate}
+
+\section{Data Types}
+
+\subsection{Control Data}
+
+\begin{itemize}
+    \item Mode changes
+    \item Enable/disable commands
+    \item Mission parameters
+\end{itemize}
+
+\subsection{Telemetry Data}
+
+\begin{itemize}
+    \item System state
+    \item Battery voltage
+    \item Sensor summaries
+    \item Communication status
+\end{itemize}
+
+\subsection{Vision Data}
+
+\begin{itemize}
+    \item Still images
+    \item Video streams
+\end{itemize}
+
+\subsection{Configuration Data}
+
+\begin{itemize}
+    \item Network settings
+    \item Calibration parameters
+    \item Control limits
+\end{itemize}
+
+\end{document}
