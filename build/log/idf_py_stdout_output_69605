@@ -1,6 +1,0 @@
-[0/1] Re-running CMake...
--- Building ESP-IDF components for target esp32c3
--- Found Git: /usr/bin/git (found version "2.43.0") 
--- Configuring incomplete, errors occurred!
-FAILED: build.ninja 
-/usr/bin/cmake --regenerate-during-build -S/home/stephenwb/Projects/autonomous-drone -B/home/stephenwb/Projects/autonomous-drone/build
