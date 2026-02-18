@@ -91,9 +91,18 @@ Verify stability across repeated connect/disconnect cycles.
 - No firmware crashes or resets.
 - Advertising resumes after disconnect.
 
-**Record:**
-- Number of successful attempts.
-- Approximate reconnect time.
+**Results:**
+- Attempts: 5
+- Success: 5/5
+- Advertising resumed after each disconnect: Yes
+- Time-to-reconnect: ~instant (<1s, perceived)
+- Crashes/resets: None observed
+- Disconnect lines:
+    - I (8928) NimBLE: disconnect; reason=531
+    - I (36668) NimBLE: connection established; status=0
+    - these repeated 5 times
+
+
 
 ---
 
