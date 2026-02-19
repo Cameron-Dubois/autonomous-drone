@@ -41,6 +41,9 @@ sdkconfig
 managed_components/
 # If ESP-IDF tools are installed/referenced locally to the project
 .espressif/
+#cache files
+.cache/
+
 
 # CMake generated files
 CMakeCache.txt
