@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
 import { createMockComms } from "../../../src/comms/mock";
 import type { Telemetry } from "../../../src/protocol/types";
 
@@ -15,7 +15,10 @@ export default function Index() {
         followMode: false,
     });
 
-    useEffect(() => comms.subscribeTelemetry(setTel), [comms]);
+    useEffect(() => {
+        const unsubscribe = comms.subscribeTelemetry(setTel);
+        return unsubscribe;
+    }, [comms]);
 
     const barActive = (i: number) => tel.rssiBars >= i;
 
@@ -33,7 +36,7 @@ export default function Index() {
                                     key={i}
                                     style={[
                                         styles.signalBar,
-                                        { height: 4 + i * 4, opacity: i === 4 ? 0.3 : 1 },
+                                        { height: 4 + i * 4, opacity: i === 4 ? 0.3 : 1, marginRight: i < 4 ? 3 : 0 },
                                         barActive(i) && styles.signalBarActive,
                                     ]}
                                 />
@@ -70,7 +73,7 @@ export default function Index() {
                 {/* Controls */}
                 <View style={styles.controls}>
                     <Pressable
-                        style={[styles.btn, styles.btnPrimary]}
+                        style={[styles.btn, styles.btnPrimary, styles.btnSpacing]}
                         onPress={() => comms.send({ type: "FOLLOW_TOGGLE" })}
                     >
                         <Text style={styles.btnLabel}>
@@ -78,16 +81,16 @@ export default function Index() {
                         </Text>
                     </Pressable>
 
-                    <Pressable style={styles.btn} onPress={() => comms.send({ type: "ASCEND" })}>
+                    <Pressable style={[styles.btn, styles.btnSpacing]} onPress={() => comms.send({ type: "ASCEND" })}>
                         <Text style={styles.btnLabel}>Ascend</Text>
                     </Pressable>
 
-                    <Pressable style={styles.btn} onPress={() => comms.send({ type: "DESCEND" })}>
+                    <Pressable style={[styles.btn, styles.btnSpacing]} onPress={() => comms.send({ type: "DESCEND" })}>
                         <Text style={styles.btnLabel}>Descend</Text>
                     </Pressable>
 
                     <Pressable
-                        style={[styles.btn, styles.btnStop]}
+                        style={[styles.btn, styles.btnStop, styles.btnSpacing]}
                         onPress={() => comms.send({ type: "ESTOP" })}
                     >
                         <Text style={[styles.btnLabel, { color: "#ff3d3d" }]}>Emergency Stop</Text>
@@ -107,11 +110,15 @@ export default function Index() {
     );
 }
 
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: "#05070a", alignItems: "center", justifyContent: "center" },
     panel: {
-        width: 390,
-        height: 844,
+        width: Math.min(390, SCREEN_WIDTH - 32),
+        height: Math.min(844, SCREEN_HEIGHT - 32),
+        maxWidth: 390,
+        maxHeight: 844,
         borderRadius: 40,
         overflow: "hidden",
         borderWidth: 1,
@@ -128,7 +135,7 @@ const styles = StyleSheet.create({
     mono: { marginTop: 4, fontSize: 14, color: "white" },
     teal: { color: "#00f2ff" },
 
-    signalRow: { flexDirection: "row", gap: 3, alignItems: "flex-end", marginTop: 6 },
+    signalRow: { flexDirection: "row", alignItems: "flex-end", marginTop: 6 },
     signalBar: { width: 3, borderRadius: 1, backgroundColor: "rgba(255,255,255,0.2)" },
     signalBarActive: { backgroundColor: "#00f2ff" },
 
@@ -141,7 +148,6 @@ const styles = StyleSheet.create({
         left: 32,
         right: 32,
         bottom: 60,
-        gap: 16,
     },
     btn: {
         height: 80,
@@ -162,4 +168,5 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(255,61,61,0.05)",
     },
     btnLabel: { fontSize: 12, fontWeight: "800", letterSpacing: 2, color: "rgba(255,255,255,0.7)" },
+    btnSpacing: { marginBottom: 16 },
 });
