@@ -128,8 +128,16 @@ Verify SoftAP initialization and DHCP functionality.
 - Serial monitor logs show station join event and DHCP started.
 
 **Evidence to Capture:**
-- Screenshot of WiFi settings with assigned IP.
-- Serial log snippet confirming connection.
+- Screenshot of WiFi settings with assigned IP (inside the images folder).
+- Serial log:
+    - I (492) wifi:mode : softAP (40:4c:ca:89:af:09)
+    - I (178902) wifi:station: 5a:a4:48:d9:87:40 join, AID=1
+    - I (180112) esp_netif_lwip: DHCP server assigned IP to a client, IP is: 192.168.4.2
+
+**Result**
+- Successful
+- Notes: Connected <15s, IP 192.168.4.2 assigned, no resets observed.
+
 
 ---
 
@@ -139,7 +147,7 @@ Verify SoftAP initialization and DHCP functionality.
 Verify connection stability under idle conditions.
 
 **Setup:**
-- Connected to SoftAP.
+- Connected to SoftAP via IPhone.
 
 **Steps:**
 1. Remain connected for 2 minutes.
@@ -149,6 +157,18 @@ Verify connection stability under idle conditions.
 - No unexpected disconnect.
 - No firmware reset.
 - No DHCP restart events.
+
+**Results:**
+- Duration: >2 minutes (observed)
+- Unexpected disconnects: None observed
+- Firmware resets: None observed
+- DHCP restart events: None observed
+- Validation method: Successful HTTP GET to `http://192.168.4.1/` after >2 minutes (page returned: "esp32 c3 test alive")
+
+**Serial Logs**
+- I (542) esp_netif_lwip: DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1
+- I (9702) esp_netif_lwip: DHCP server assigned IP to a client, IP is: 192.168.4.2
+
 
 ---
 
