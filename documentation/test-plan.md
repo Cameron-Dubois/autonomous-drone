@@ -217,8 +217,7 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 
 ## 4. Drone Hardware Testing
 
-> This section will be populated in a future revision.
-
+>add your drone test cases here,i've just put some example sections feel free to add/delete them
 ### 4.1 Motors & ESCs
 ### 4.2 Frame & Propellers
 ### 4.3 ESP32 Firmware
