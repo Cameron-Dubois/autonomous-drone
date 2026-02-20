@@ -61,6 +61,7 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 | WIFI-04 | BT + WiFi connected simultaneously | Both sections show `CONNECTED`; control and streaming work concurrently |
 | WIFI-05 | Wrong WiFi password | Auth failure shown; badge stays `DISCONNECTED`; user can retry |
 | WIFI-06 | Walk out of WiFi range | App detects loss; badge reverts to `DISCONNECTED`; warns user |
+| WIFI-07 | Reconnect to previously saved drone network (within range) | App auto-detects known SSID; reconnects within 10 s; Badge → CONNECTED |
 
 ---
 
@@ -86,6 +87,8 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 | CTRL-05 | Toggle Auto-Follow ON | `FOLLOW_TOGGLE` sent; button label updates to `Auto-Follow Mode: ON` |
 | CTRL-06 | Toggle Auto-Follow OFF | `FOLLOW_TOGGLE` sent; label switches back to `OFF` |
 | CTRL-07 | Send commands while disconnected | Commands blocked; UI indicates controls are inactive; no crash |
+| CTRL-08 | Measure Critical Command Dispatch Latency (tap → BLE write) | Target: ≤150ms; Max: ≤500ms  |
+| CTRL-09 | Measure Non-Critical Command Dispatch Latency (tap → BLE write) | Target: ≤500ms Max: ≤1000ms |
 
 ---
 
@@ -162,6 +165,8 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 | EDGE-07 | Drone battery hits 0% | Emergency landing initiated; app shows critical alert |
 | EDGE-08 | E-STOP pressed while Follow Mode active | ESTOP takes priority; follow mode disabled immediately |
 | EDGE-09 | App opened before drone is powered | Empty device list shown; "No devices found" state displayed |
+| EDGE-10 | Drone firmware version mismatch with app | App shows compatibility warning; blocks unsafe commands |
+| EDGE-11 | iOS flags drone WiFi as “No Internet” | App continues using drone WiFi for video; user guided to keep WiFi connected; no crash or forced disconnect |
 
 ---
 
