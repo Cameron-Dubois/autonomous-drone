@@ -1,4 +1,4 @@
-\# Autonomous Drone Project Overview
+Autonomous Drone Project Overview
 
 \## Problem Statement
 
