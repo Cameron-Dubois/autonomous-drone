@@ -83,6 +83,21 @@ export function createMockComms(): DroneComms {
           t.speedKmh = 0;
           t.followMode = false;
           break;
+        case "TAKEOFF":
+          t.altM = clampInt(t.altM + 5, 0, 500);
+          t.speedKmh = clampInt(t.speedKmh + 5, 0, 80);
+          break;
+        case "LAND":
+          t.speedKmh = 0;
+          t.altM = clampInt(t.altM - 2, 0, 500);
+          break;
+        case "HOVER":
+          t.speedKmh = 0;
+          break;
+        case "RETURN_HOME":
+          t.speedKmh = clampInt(t.speedKmh + 10, 0, 80);
+          t.followMode = false;
+          break;
       }
       emit();
     },

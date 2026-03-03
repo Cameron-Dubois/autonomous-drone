@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Stack } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { initRealBleClient } from "../src/comms/BLE";
+import { CommsProvider } from "../src/context/CommsContext";
 
 // Use real BLE in dev/production builds when EXPO_PUBLIC_BLE_MOCK=0
 const useRealBle =
@@ -19,8 +21,12 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <SafeAreaProvider>
+      <CommsProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack>
+      </CommsProvider>
+    </SafeAreaProvider>
   );
 }

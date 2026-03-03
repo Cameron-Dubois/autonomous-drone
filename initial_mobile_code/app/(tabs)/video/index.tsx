@@ -1,12 +1,14 @@
 import React from "react";
-import { View, Text, StyleSheet, Dimensions } from "react-native";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 
 export default function Video() {
+    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+    const panelWidth = Math.min(390, SCREEN_WIDTH - 32);
+    const panelHeight = Math.min(844, SCREEN_HEIGHT - 32);
+
     return (
         <View style={styles.root}>
-            <View style={styles.panel}>
+            <View style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.title}>Live Video</Text>
@@ -26,15 +28,15 @@ export default function Video() {
                     {/* Video Controls Overlay */}
                     <View style={styles.videoControls}>
                         <View style={styles.controlRow}>
-                            <View style={styles.controlButton}>
+                            <Pressable style={styles.controlButton} onPress={() => {}}>
                                 <Text style={styles.controlButtonText}>⏸</Text>
-                            </View>
-                            <View style={styles.controlButton}>
+                            </Pressable>
+                            <Pressable style={styles.controlButton} onPress={() => {}}>
                                 <Text style={styles.controlButtonText}>⏹</Text>
-                            </View>
-                            <View style={styles.controlButton}>
+                            </Pressable>
+                            <Pressable style={styles.controlButton} onPress={() => {}}>
                                 <Text style={styles.controlButtonText}>⏺</Text>
-                            </View>
+                            </Pressable>
                         </View>
                     </View>
                 </View>
@@ -63,15 +65,15 @@ export default function Video() {
                 <View style={styles.cameraControls}>
                     <Text style={styles.label}>Camera Controls</Text>
                     <View style={styles.cameraButtonRow}>
-                        <View style={[styles.cameraButton, styles.cameraButtonSmall]}>
+                        <Pressable style={[styles.cameraButton, styles.cameraButtonSmall]}>
                             <Text style={styles.cameraButtonText}>Zoom -</Text>
-                        </View>
-                        <View style={[styles.cameraButton, styles.cameraButtonLarge]}>
+                        </Pressable>
+                        <Pressable style={[styles.cameraButton, styles.cameraButtonLarge]}>
                             <Text style={styles.cameraButtonText}>Reset</Text>
-                        </View>
-                        <View style={[styles.cameraButton, styles.cameraButtonSmall]}>
+                        </Pressable>
+                        <Pressable style={[styles.cameraButton, styles.cameraButtonSmall]}>
                             <Text style={styles.cameraButtonText}>Zoom +</Text>
-                        </View>
+                        </Pressable>
                     </View>
                 </View>
             </View>
@@ -82,8 +84,8 @@ export default function Video() {
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: "#05070a", alignItems: "center", justifyContent: "center" },
     panel: {
-        width: 390,
-        height: 844,
+        minWidth: 320,
+        maxWidth: 390,
         borderRadius: 40,
         overflow: "hidden",
         borderWidth: 1,

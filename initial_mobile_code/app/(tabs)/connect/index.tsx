@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, useWindowDimensions } from "react-native";
 import { getBleClient, type BleDeviceSummary } from "../../../src/comms/BLE";
 
 const SCAN_TIMEOUT_MS = 5000;
@@ -12,6 +12,8 @@ function formatRssi(rssi?: number): string {
 }
 
 export default function Connect() {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+  const panelWidth = Math.min(390, SCREEN_WIDTH - 32);
   const [bluetoothStatus, setBluetoothStatus] = useState<"disconnected" | "scanning" | "connected">("disconnected");
   const [devices, setDevices] = useState<BleDeviceSummary[]>([]);
   const [bleError, setBleError] = useState<string | null>(null);
@@ -65,7 +67,7 @@ export default function Connect() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.panel}>
+      <View style={[styles.panel, { width: panelWidth, maxHeight: SCREEN_HEIGHT - 32 }]}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <Text style={styles.title}>Connection</Text>
@@ -169,13 +171,24 @@ export default function Connect() {
 
                         <View style={styles.deviceList}>
                             <Text style={styles.label}>Available Networks</Text>
+                            {wifiStatus === "scanning" && (
+                                <Text style={styles.hint}>WiFi support coming soon. Use Bluetooth to connect.</Text>
+                            )}
                             <View style={styles.deviceItem}>
                                 <View style={styles.deviceInfo}>
                                     <Text style={styles.deviceName}>Drone-Network-5G</Text>
-                                    <Text style={styles.deviceDetails}>Signal: Excellent • Secured</Text>
+                                    <Text style={styles.deviceDetails}>
+                                        Signal: Excellent • Secured
+                                        {wifiStatus !== "connected" && " • WiFi coming soon"}
+                                    </Text>
                                 </View>
-                                <Pressable style={[styles.btn, styles.btnSmall]}>
-                                    <Text style={styles.btnLabel}>Connect</Text>
+                                <Pressable
+                                    style={[styles.btn, styles.btnSmall]}
+                                    disabled
+                                >
+                                    <Text style={[styles.btnLabel, { opacity: 0.6 }]}>
+                                        {wifiStatus === "connected" ? "Connected" : "Coming soon"}
+                                    </Text>
                                 </Pressable>
                             </View>
                         </View>
@@ -189,8 +202,8 @@ export default function Connect() {
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: "#05070a", alignItems: "center", justifyContent: "center" },
     panel: {
-        width: 390,
-        height: 844,
+        minWidth: 320,
+        maxWidth: 390,
         borderRadius: 40,
         overflow: "hidden",
         borderWidth: 1,

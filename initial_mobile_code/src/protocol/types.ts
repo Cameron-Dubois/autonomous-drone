@@ -2,7 +2,11 @@ export type Command =
   | { type: "FOLLOW_TOGGLE" }
   | { type: "ASCEND" }
   | { type: "DESCEND" }
-  | { type: "ESTOP" };
+  | { type: "ESTOP" }
+  | { type: "TAKEOFF" }
+  | { type: "LAND" }
+  | { type: "HOVER" }
+  | { type: "RETURN_HOME" };
 
 export type LinkStatus = "DISCONNECTED" | "CONNECTING" | "SECURE_LINK";
 

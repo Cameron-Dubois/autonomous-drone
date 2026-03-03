@@ -1,10 +1,16 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import { useComms } from "../../../src/context/CommsContext";
 
 export default function Control() {
+    const comms = useComms();
+    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+    const panelWidth = Math.min(390, SCREEN_WIDTH - 32);
+    const panelHeight = Math.min(844, SCREEN_HEIGHT - 32);
+
     return (
         <View style={styles.root}>
-            <View style={styles.panel}>
+            <View style={[styles.panel, { width: panelWidth, height: panelHeight }]}>
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.title}>Manual Control</Text>
@@ -24,18 +30,18 @@ export default function Control() {
                 <View style={styles.quickActions}>
                     <Text style={styles.label}>Quick Actions</Text>
                     <View style={styles.actionRow}>
-                        <Pressable style={[styles.btn, styles.btnSmall]}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "TAKEOFF" })}>
                             <Text style={styles.btnLabel}>Takeoff</Text>
                         </Pressable>
-                        <Pressable style={[styles.btn, styles.btnSmall]}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "LAND" })}>
                             <Text style={styles.btnLabel}>Land</Text>
                         </Pressable>
                     </View>
                     <View style={styles.actionRow}>
-                        <Pressable style={[styles.btn, styles.btnSmall]}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "HOVER" })}>
                             <Text style={styles.btnLabel}>Hover</Text>
                         </Pressable>
-                        <Pressable style={[styles.btn, styles.btnSmall]}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "RETURN_HOME" })}>
                             <Text style={styles.btnLabel}>Return Home</Text>
                         </Pressable>
                     </View>
@@ -43,7 +49,7 @@ export default function Control() {
 
                 {/* Emergency Stop */}
                 <View style={styles.emergencySection}>
-                    <Pressable style={[styles.btn, styles.btnStop]}>
+                    <Pressable style={[styles.btn, styles.btnStop]} onPress={() => comms.send({ type: "ESTOP" })}>
                         <Text style={[styles.btnLabel, { color: "#ff3d3d" }]}>Emergency Stop</Text>
                     </Pressable>
                 </View>
@@ -55,8 +61,9 @@ export default function Control() {
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: "#05070a", alignItems: "center", justifyContent: "center" },
     panel: {
-        width: 390,
-        height: 844,
+        minWidth: 320,
+        maxWidth: 390,
+        maxHeight: 844,
         borderRadius: 40,
         overflow: "hidden",
         borderWidth: 1,

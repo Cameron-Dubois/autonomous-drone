@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
-import { createMockComms } from "../../../src/comms/mock";
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
+import { useComms } from "../../../src/context/CommsContext";
 import type { Telemetry } from "../../../src/protocol/types";
 
 export default function Index() {
-    const comms = useMemo(() => createMockComms(), []);
+    const comms = useComms();
+    const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
+    const styles = useMemo(() => getStyles(SCREEN_WIDTH, SCREEN_HEIGHT), [SCREEN_WIDTH, SCREEN_HEIGHT]);
     const [tel, setTel] = useState<Telemetry>({
         link: "DISCONNECTED",
         batteryPct: 0,
@@ -110,13 +112,12 @@ export default function Index() {
     );
 }
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const styles = StyleSheet.create({
+const getStyles = (screenWidth: number, screenHeight: number) => StyleSheet.create({
     root: { flex: 1, backgroundColor: "#05070a", alignItems: "center", justifyContent: "center" },
     panel: {
-        width: Math.min(390, SCREEN_WIDTH - 32),
-        height: Math.min(844, SCREEN_HEIGHT - 32),
+        width: Math.min(390, screenWidth - 32),
+        height: Math.min(844, screenHeight - 32),
         maxWidth: 390,
         maxHeight: 844,
         borderRadius: 40,
@@ -170,3 +171,4 @@ const styles = StyleSheet.create({
     btnLabel: { fontSize: 12, fontWeight: "800", letterSpacing: 2, color: "rgba(255,255,255,0.7)" },
     btnSpacing: { marginBottom: 16 },
 });
+
