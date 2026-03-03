@@ -1,0 +1,61 @@
+Item: ,Weight: ,Width: ,Length: ,Power supply: ,Information: ,Wiring ,Link: ,Manufacturer ,Product: 
+GY-BMP280-3.3 High Precision Atmospheric Pressure Sensor Module Digital Barometric Pressure Altitude Sensor,‎0.634 ounces,11.5mm,15mm ,3v ,"- Digital interfaces: I²C (up to 3.4 MHz)/SPI (3 and 4 wire, up to 10 MHz)
+- Air pressure range: 300-1100hPa
+- Current consumption:2.7µA @ 1 Hz sampling rate
+- Pin pitch: 2.54mm
+
+Typical application:
+- Enhancement of GPS navigation (e.g.time-to-first-fix improvement,dead-reckoning,slope detection)
+- Indoor navigation (floor detection,elevator detection)
+- Outdoor navigation,leisure and sports applications
+- Weather forecast
+- Health care application(e.g. sirometry)
+- Vertical velocity indication(e.g. risk/sink speed)",,https://www.amazon.com/KOOBOOK-GY-BMP280-3-3-Precision-Atmospheric-Barometric/dp/B07S98QBTQ,KOOBOOK,
+ QMC5883P GY-271 3-5V IIC Triple Axis Compass Magnetic Sensor Module Electronic Compass Module,0.493 ounces ,0.55 mm,0.16 mm,,"Measuring range : +/- 1.3-8 Gauss
+Means of communication: IIC communication protocol
+Using high-quality immersion gold PCB, machine welding process to ensure quality","VCC: supply voltage 3.3V to 5V
+GND: Ground connection
+SCL: clock line
+SDA: Data line
+DRDY: Data Ready",https://www.amazon.com/HiLetgo-QMC5883P-Magnetic-Electronic-Compatible/dp/B008V9S64E,HiLetgo ,
+NewBeeDrone M10Q Micro GPS w/ Compass,~2.16G,17mm,12mm ,5v ,"Micro Design: Ultra-lightweight and compact, perfect for mini and racing drones.
+Integrated Compass: Provides accurate heading information for improved navigation.
+High Sensitivity: Ensures reliable performance in various flight conditions.
+Easy Installation: Simple to set up with your existing drone systems.
+Antenna: Ceramic Antennea 2DB 
+Frequency: GPS L1, GLONASSL1, BDS B1, GALIELOE1, SBAS L1,QZSS L1 
+Compas: QMC5883
+BAUD rate: 115200 DPS
+Output frequency : 1HZ - 10HZ, default 10HZ
+Speed accuracy: 005M/S
+",,https://newbeedrone.com/products/newbeedrone-m10q-micro-gps-module-with-compass,NewBeeDrone ,
+Ultra Light Nano FPV Camera,2g ,14mm (19mm with bracket) ,14mm (19mm with bracket) ,DC 5-25v,"- Model: Caddx Ant Analog Camera
+- Image Sensor: 1/3"" CMOS Sensor
+- Horizontal Resolution: 1200 TVL
+- TV System: NTSC
+- MENU: Support
+- IMAGE: 16:9
+- Synchronization: Internal
+- Electronic Shutter:PAL: 1/50~100,000; NTSC: 1/60~100,000
+- S/N Ratio: >52dB (AGC OFF)
+- Video Output: CVBS
+- Lens: 1.8mm
+- Min. Illumination: 0.001Lux F1.2
+- Auto Gain Control : YES
+- BLC: YES
+- WDRGlobal: WDR
+- DNR: 3D DNR
+- Wide Power Input: DC 5-25V
+- Work Temperature: -20℃~+60℃
+- Work Humidity: 20%~80%
+- Color: silver/Black",,https://www.amazon.com/Caddx-Camera-1200TVL-Global-Aspect/dp/B088TDTL1M?th=1,SoloGood,
+ESP32- C3 - DevKitC - RUST-2,9 grams,63.5mm,22.86 mm ,5v (requires a minimum of  0.5 mA current)  ,"- operating clock frequency up to 160 MHZ
+- zero wait cycle access to on-chip SRAM and Cache for program and data access over IRAM/DRAM interfrace 
+- interrupt controller (INTC) with up to 31 vectored interrupts with programmable priority and threshold levels 
+- debug module (DM) compliant with RISC-V debug specification v0.13 with external debugger support
+over an industry-standard JTAG/USB port
+- Debugger direct system bus access (SBA) to memory and peripherals
+- Hardware trigger compliant to RISC-V debug specification v0.13 with up to 8 breakpoints/watchpoints
+-  Physical memory protection (PMP) for up to 16 configurable regions
+-  32-bit AHB system bus for peripheral access
+-  Configurable events for core performance metrics",,https://documentation.espressif.com/esp32-c3_datasheet_en.pdf,Espressif Systems ,
