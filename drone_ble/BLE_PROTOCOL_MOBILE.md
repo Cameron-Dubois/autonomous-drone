@@ -11,7 +11,7 @@ You need a **development build** (not Expo Go) so the real BLE stack is used.
 ### On Windows
 
 1. **Android (easiest)**  
-   - In `initial_mobile_code`, run:
+   - In `mobile`, run:
      ```bash
      set EXPO_PUBLIC_BLE_MOCK=0
      npx expo prebuild
@@ -22,7 +22,7 @@ You need a **development build** (not Expo Go) so the real BLE stack is used.
 2. **iOS**  
    - Build in the cloud and install on your iPhone:
      ```bash
-     cd initial_mobile_code
+     cd mobile
      npx eas build --platform ios --profile development
      ```
    - Install the build and run. Scan and connect to **DroneBLE**.
@@ -38,7 +38,7 @@ The mobile app uses these UUIDs so they **must** match the GATT service/characte
 
 They are defined in:
 
-- **Mobile:** `initial_mobile_code/src/comms/BLE/ble.real.ts`
+- **Mobile:** `mobile/src/comms/BLE/ble.real.ts`
 - **ESP32:** `drone_ble/main/gatt_svr.c` (`gatt_svr_svc_uuid`, `gatt_svr_chr_uuid`)
 
 The mobile scans **without** a service filter so it can discover the ESP32 even if the firmware currently advertises only the 16‑bit UUID (0x1811). After connection, read/write/notify use the 128‑bit service and characteristic above.

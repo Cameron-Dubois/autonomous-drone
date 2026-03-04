@@ -1,4 +1,4 @@
-// initial_mobile_code/src/comms/ble/types.ts
+// src/comms/BLE/types.ts
 
 export type BleConnectionStatus = "disconnected" | "scanning" | "connected";
 

@@ -33,7 +33,7 @@ npx eas-cli
 From your project folder:
 
 ```bash
-cd initial_mobile_code
+cd mobile
 eas login
 ```
 
@@ -109,7 +109,7 @@ All profiles use real BLE (no mocks).
 ## Quick reference
 
 ```bash
-cd initial_mobile_code
+cd mobile
 eas login
 eas build --platform ios --profile development
 # Then open the build page link and install on your iPhone.

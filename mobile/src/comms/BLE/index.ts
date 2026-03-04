@@ -1,4 +1,4 @@
-// initial_mobile_code/src/comms/BLE/index.ts
+// src/comms/BLE/index.ts
 
 import type { DroneBleClient } from "./types.ts";
 

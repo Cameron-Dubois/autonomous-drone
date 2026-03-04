@@ -1,4 +1,4 @@
-// initial_mobile_code/src/comms/ble/ble.real.ts
+// src/comms/BLE/ble.real.ts
 
 import type {
   BleDeviceSummary,
