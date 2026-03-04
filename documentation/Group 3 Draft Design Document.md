@@ -1,28 +1,28 @@
 Group 3 Draft Design Document
 
-### **Executive Summary** {#executive-summary}
+### Executive Summary {#executive-summary}
 
-### **Table of Contents** {#table-of-contents}
+### Table of Contents {#table-of-contents}
 
-[**Executive Summary	1**](#executive-summary)
+[Executive Summary](#executive-summary)
 
-[**Table of Contents	2**](#table-of-contents)
+[Table of Contents](#table-of-contents)
 
-[**Introduction	3**](#introduction)
+[Introduction](#introduction)
 
-[**Design	4**](#design)
+[Design](#design)
 
-[**Evaluation	5**](#evaluation)
+[Evaluation](#evaluation)
 
-[**Appendix 1 \- Problem Formulation	6**](#appendix-1---problem-formulation)
+[Appendix 1 – Problem Formulation](#appendix-1---problem-formulation)
 
-[**Appendix 2 \- Planning	7**](#appendix-2---planning)
+[Appendix 2 – Planning](#appendix-2---planning)
 
-[**Appendix 3 \- Test Plan & Results	8**](#appendix-3---test-plan-&-results)
+[Appendix 3 – Test Plan & Results](#appendix-3---test-plan-&-results)
 
-[**Appendix 4 \- Review	9**](#appendix-4---review)
+[Appendix 4 – Review](#appendix-4---review)
 
-### **Introduction** {#introduction}
+### Introduction {#introduction}
 
 **Need & Goal Statements**
 
@@ -32,7 +32,7 @@ Group 3 Draft Design Document
 
 **Sustainability Statement**
 
-### **Design** {#design}
+### Design {#design}
 
 **Aesthetic Prototype**
 
@@ -48,13 +48,13 @@ Group 3 Draft Design Document
 
 **Simulations**
 
-### **Evaluation** {#evaluation}
+### Evaluation {#evaluation}
 
 **Functional Prototype**
 
 **Testing**
 
-### **Appendix 1 \- Problem Formulation** {#appendix-1---problem-formulation}
+### Appendix 1 – Problem Formulation {#appendix-1---problem-formulation}
 
 **Conceptualisations**
 
@@ -64,19 +64,33 @@ Group 3 Draft Design Document
 
 **Morphological Charts**
 
-### **Appendix 2 \- Planning** {#appendix-2---planning}
+### Appendix 2 – Planning {#appendix-2---planning}
 
-**Basic Plan / Gantt Chart**
+#### Basic Plan / Gantt Chart
 
-**Division of labor during prototyping phase**
+need to put gantt chart here somehow
+---
 
-**Collaboration**
+#### Division of Labor During Prototyping Phase
 
-### **Appendix 3 \- Test Plan & Results** {#appendix-3---test-plan-&-results}
+planning on adding table of who did what
+
+
+---
+
+#### Collaboration
+
+We used the following tools and processes to coordinate work:
+
+- **Jira** – We used Jira with Kanban boards and Scrum to manage sprints, bugs, and tasks. Epics and stories were broken down into sprint-sized work, and we tracked progress through columns (e.g., To Do, In Progress, In Review, Done). Sprint planning were held regularly at our first meeting of the week.
+- **GitHub** – The repository was used for all code, documentation, and design files.
+- **Discord** – Discord served as the main channel for day-to-day messaging, quick questions, meeting coordination, and sharing updates between synchronous meetings.
+
+### Appendix 3 – Test Plan & Results {#appendix-3---test-plan-&-results}
 
 **Details**
 
-### **Appendix 4 \- Review** {#appendix-4---review}
+### Appendix 4 – Review {#appendix-4---review}
 
-**One paragraph from teach team member**
+**One paragraph from each team member**
 
