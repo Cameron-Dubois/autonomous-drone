@@ -92,22 +92,18 @@ Photographs of the prototype:
 **App Screenshots**
 
 ### Connect Screen
-<img src="./pictures for draft design documents/app_connect.png" width="300">
-
+![Connect screen](./images/app_connect.png)
 ### Home Screen
-<img src="./pictures for draft design documents/app_home.png" width="300">
-
+![Home screen](./images/app_home.png)
 ### Manual Control
-<img src="./pictures for draft design documents/app_control.png" width="300">
-
+![Control screen](./images/app_control.png)
 ### Live Video Feed
-<img src="./pictures for draft design documents/app_video.png" width="300">
+![Video screen](./images/app_video.png)
 
 ## Prototype Photos
-
-<img src="./pictures for draft design documents/drone1.png" width="500">
-<img src="./pictures for draft design documents/drone2.png" width="500">
-<img src="./pictures for draft design documents/drone3.png" width="500">
+![Drone 1](./images/drone1.png)
+![Drone 2](./images/drone2.png)
+![Drone 3](./images/drone3.png)
 
 **Testing**
 
