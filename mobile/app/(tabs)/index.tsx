@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions, Alert } from "react-native";
-import { useComms } from "../../../src/context/CommsContext";
-import type { Telemetry } from "../../../src/protocol/types";
-import { spacing, fontSizes, radii, getPanelDimensions } from "../../../src/theme/layout";
+import { useComms } from "../../src/context/CommsContext";
+import type { Telemetry } from "../../src/protocol/types";
+import { spacing, fontSizes, radii, getPanelDimensions } from "../../src/theme/layout";
 
-export default function Index() {
+export default function HomeScreen() {
     const comms = useComms();
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const styles = useMemo(() => getStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
@@ -33,7 +33,6 @@ export default function Index() {
                 showsVerticalScrollIndicator={false}
             >
                 <View style={styles.content}>
-                    {/* Status bar */}
                     <View style={styles.statusRow}>
                     <View>
                         <Text style={styles.label}>Signal Status</Text>
@@ -61,7 +60,6 @@ export default function Index() {
                     </View>
                 </View>
 
-                {/* Telemetry */}
                 <View style={styles.telemetry}>
                     <Text style={styles.label}>Ground Speed</Text>
                     <Text style={styles.big}>
@@ -78,7 +76,6 @@ export default function Index() {
                     </Text>
                 </View>
 
-                {/* Controls */}
                 <View style={styles.controls}>
                     <Pressable
                         style={[styles.btn, styles.btnPrimary, styles.btnSpacing]}
@@ -118,7 +115,6 @@ export default function Index() {
         </View>
     );
 }
-
 
 const getStyles = (screenWidth: number, screenHeight: number) => {
     const { contentPadding } = getPanelDimensions(screenWidth, screenHeight);

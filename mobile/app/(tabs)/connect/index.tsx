@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, useWindowDimensions, Platform, PermissionsAndroid } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform, PermissionsAndroid } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { getBleClient, setStoredDeviceId, type BleDeviceSummary } from "../../../src/comms/BLE";
@@ -274,7 +274,7 @@ export default function Connect() {
             <View style={styles.deviceList}>
               <Text style={styles.label}>Available Devices</Text>
               {devices.length === 0 && bluetoothStatus !== "scanning" && (
-                <Text style={styles.hint}>Tap “Scan for Devices” to find your drone.</Text>
+                <Text style={styles.hint}>Tap "Scan for Devices" to find your drone.</Text>
               )}
               {devices.map((d) => (
                 <View key={d.id} style={styles.deviceItem}>
@@ -354,7 +354,7 @@ export default function Connect() {
               {Platform.OS === "ios" && wifiNetworks.length === 0 && wifiStatus !== "scanning" ? (
                 <Text style={styles.hint}>Network scanning is only available on Android.</Text>
               ) : wifiNetworks.length === 0 && wifiStatus !== "scanning" && Platform.OS !== "ios" && (
-                <Text style={styles.hint}>Tap “Scan for Networks” to find drone WiFi.</Text>
+                <Text style={styles.hint}>Tap "Scan for Networks" to find drone WiFi.</Text>
               )}
               {wifiNetworks.map((n) => (
                 <View key={n.id} style={styles.deviceItem}>
@@ -514,4 +514,3 @@ const styles = StyleSheet.create({
         letterSpacing: 0.5,
     },
 });
-

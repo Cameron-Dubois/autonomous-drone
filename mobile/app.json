@@ -41,8 +41,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "f5eeacf4-abe3-4c2d-bf8d-eaa0d7c8175e"
+        "projectId": "0f2df1f0-4104-4367-aeee-b695173c33e8"
       }
-    }
+    },
+    "owner": "autonomous-drone"
   }
 }
