@@ -35,7 +35,8 @@ Group 3 Draft Design Document
 ### Design {#design}
 
 **Aesthetic Prototype**
-
+![Drone cad](images/cad.png)
+![Drone](images/drone.png)
 **Design for Manufacture, Assembly, Maintenance**
 
 **Block Diagrams**
@@ -68,13 +69,11 @@ Group 3 Draft Design Document
 
 #### Basic Plan / Gantt Chart
 
-need to put gantt chart here somehow
----
+## need to put gantt chart here somehow
 
 #### Division of Labor During Prototyping Phase
 
 planning on adding table of who did what
-
 
 ---
 
@@ -93,4 +92,3 @@ We used the following tools and processes to coordinate work:
 ### Appendix 4 – Review {#appendix-4---review}
 
 **One paragraph from each team member**
-
