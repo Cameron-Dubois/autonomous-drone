@@ -20,12 +20,14 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "bleprph.h"
 #include "services/ans/ble_svc_ans.h"
+#include "esp_timer.h"
 
 /*** Maximum number of characteristics with the notify flag ***/
 #define MAX_NOTIFY 5
@@ -46,6 +48,206 @@ static uint8_t gatt_svr_dsc_val;
 static const ble_uuid128_t gatt_svr_dsc_uuid =
     BLE_UUID128_INIT(0x01, 0x01, 0x01, 0x01, 0x12, 0x12, 0x12, 0x12,
                      0x23, 0x23, 0x23, 0x23, 0x34, 0x34, 0x34, 0x34);
+
+/*
+ * Drone BLE command layer helpers
+ */
+
+/* Simple in-memory state for arming and per-motor throttle.
+ * Real motor driver code can later read from or be called by these helpers. */
+static bool g_drone_armed = false;
+static uint8_t g_motor_throttle[4] = {0, 0, 0, 0}; /* 0–255 abstract throttle */
+
+static void
+drone_log_motor_state(void)
+{
+    MODLOG_DFLT(INFO,
+                "motor_state armed=%d m1=%u m2=%u m3=%u m4=%u\n",
+                g_drone_armed,
+                g_motor_throttle[0],
+                g_motor_throttle[1],
+                g_motor_throttle[2],
+                g_motor_throttle[3]);
+}
+
+static void
+drone_set_all_motors(uint8_t throttle)
+{
+    for (int i = 0; i < 4; i++) {
+        g_motor_throttle[i] = throttle;
+    }
+    drone_log_motor_state();
+}
+
+static void
+drone_set_motor_index(int index, uint8_t throttle)
+{
+    if (index < 0 || index >= 4) {
+        return;
+    }
+    g_motor_throttle[index] = throttle;
+    drone_log_motor_state();
+}
+
+uint32_t
+drone_get_ms(void)
+{
+    return (uint32_t)(esp_timer_get_time() / 1000ULL);
+}
+
+static int
+drone_send_ack(uint16_t conn_handle, uint16_t chr_val_handle,
+               const drone_ack_t *ack)
+{
+    uint8_t buf[DRONE_ACK_LEN];
+    struct os_mbuf *om;
+    int rc;
+
+    buf[0] = ack->seq;
+    buf[1] = ack->cmd;
+    buf[2] = ack->status;
+
+    /* Little-endian encode of 32-bit ms timestamp. */
+    buf[3] = (uint8_t)(ack->drone_ms & 0xFF);
+    buf[4] = (uint8_t)((ack->drone_ms >> 8) & 0xFF);
+    buf[5] = (uint8_t)((ack->drone_ms >> 16) & 0xFF);
+    buf[6] = (uint8_t)((ack->drone_ms >> 24) & 0xFF);
+
+    om = ble_hs_mbuf_from_flat(buf, sizeof(buf));
+    if (om == NULL) {
+        return BLE_HS_ENOMEM;
+    }
+
+    rc = ble_gatts_notify_custom(conn_handle, chr_val_handle, om);
+    if (rc != 0) {
+        MODLOG_DFLT(WARN, "Failed to send ACK notification; rc=%d\n", rc);
+    }
+
+    return rc;
+}
+
+int
+drone_cmd_parse(const uint8_t *buf, uint16_t len, drone_cmd_t *out)
+{
+    uint8_t payload_len;
+
+    if (len < 3) {
+        return -1;
+    }
+
+    out->seq = buf[0];
+    out->cmd = buf[1];
+    payload_len = buf[2];
+
+    if (payload_len > DRONE_CMD_MAX_PAYLOAD) {
+        return -2;
+    }
+
+    if (len != (uint16_t)(3 + payload_len)) {
+        return -3;
+    }
+
+    out->payload_len = payload_len;
+    if (payload_len > 0) {
+        memcpy(out->payload, &buf[3], payload_len);
+    }
+
+    return 0;
+}
+
+void
+drone_ack_build(const drone_cmd_t *cmd, uint8_t status, uint32_t now_ms,
+                drone_ack_t *out)
+{
+    out->seq = cmd->seq;
+    out->cmd = cmd->cmd;
+    out->status = status;
+    out->drone_ms = now_ms;
+}
+
+int
+drone_handle_command(const drone_cmd_t *cmd)
+{
+    switch (cmd->cmd) {
+    case DRONE_CMD_NOP:
+        MODLOG_DFLT(INFO, "DRONE_CMD_NOP seq=%u\n", cmd->seq);
+        return 0;
+
+    case DRONE_CMD_ARM:
+        g_drone_armed = true;
+        MODLOG_DFLT(INFO, "DRONE_CMD_ARM seq=%u\n", cmd->seq);
+        drone_log_motor_state();
+        return 0;
+
+    case DRONE_CMD_DISARM:
+        g_drone_armed = false;
+        /* When disarmed, force all throttles to 0. */
+        drone_set_all_motors(0);
+        MODLOG_DFLT(INFO, "DRONE_CMD_DISARM seq=%u\n", cmd->seq);
+        return 0;
+
+    case DRONE_CMD_ESTOP:
+        /* Emergency stop: clear armed flag and zero all motors immediately. */
+        g_drone_armed = false;
+        drone_set_all_motors(0);
+        MODLOG_DFLT(INFO, "DRONE_CMD_ESTOP seq=%u\n", cmd->seq);
+        return 0;
+
+    case DRONE_CMD_SET_MOTOR_1:
+    case DRONE_CMD_SET_MOTOR_2:
+    case DRONE_CMD_SET_MOTOR_3:
+    case DRONE_CMD_SET_MOTOR_4:
+        if (!g_drone_armed) {
+            MODLOG_DFLT(WARN,
+                        "SET_MOTOR ignored while disarmed (id=0x%02x seq=%u)\n",
+                        cmd->cmd, cmd->seq);
+            return -1;
+        }
+        if (cmd->payload_len < 1) {
+            MODLOG_DFLT(WARN,
+                        "SET_MOTOR missing throttle payload (id=0x%02x seq=%u)\n",
+                        cmd->cmd, cmd->seq);
+            return -2;
+        }
+        /* Interpret payload[0] as a 0–255 abstract throttle. */
+        switch (cmd->cmd) {
+        case DRONE_CMD_SET_MOTOR_1:
+            drone_set_motor_index(0, cmd->payload[0]);
+            break;
+        case DRONE_CMD_SET_MOTOR_2:
+            drone_set_motor_index(1, cmd->payload[0]);
+            break;
+        case DRONE_CMD_SET_MOTOR_3:
+            drone_set_motor_index(2, cmd->payload[0]);
+            break;
+        case DRONE_CMD_SET_MOTOR_4:
+            drone_set_motor_index(3, cmd->payload[0]);
+            break;
+        default:
+            break;
+        }
+        MODLOG_DFLT(INFO,
+                    "DRONE_CMD_SET_MOTOR (id=0x%02x) seq=%u throttle=%u\n",
+                    cmd->cmd, cmd->seq, cmd->payload[0]);
+        return 0;
+
+    case DRONE_CMD_HEARTBEAT:
+        MODLOG_DFLT(DEBUG, "DRONE_CMD_HEARTBEAT seq=%u\n", cmd->seq);
+        return 0;
+
+    case DRONE_CMD_ASCEND:
+    case DRONE_CMD_DESCEND:
+    case DRONE_CMD_FOLLOW_TOGGLE:
+        MODLOG_DFLT(INFO, "High-level command id=0x%02x seq=%u (not yet implemented)\n",
+                    cmd->cmd, cmd->seq);
+        return 0;
+
+    default:
+        MODLOG_DFLT(WARN, "Unknown command id=0x%02x seq=%u\n",
+                    cmd->cmd, cmd->seq);
+        return -10;
+    }
+}
 
 static int
 gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
@@ -160,14 +362,46 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
         }
         uuid = ctxt->chr->uuid;
         if (attr_handle == gatt_svr_chr_val_handle) {
-            rc = gatt_svr_write(ctxt->om,
-                                sizeof(gatt_svr_chr_val),
-                                sizeof(gatt_svr_chr_val),
-                                &gatt_svr_chr_val, NULL);
-            ble_gatts_chr_updated(attr_handle);
-            MODLOG_DFLT(INFO, "Notification/Indication scheduled for "
-                        "all subscribed peers.\n");
-            return rc;
+            uint8_t buf[DRONE_CMD_MAX_LEN];
+            uint16_t buf_len = OS_MBUF_PKTLEN(ctxt->om);
+            drone_cmd_t cmd;
+            drone_ack_t ack;
+            uint8_t status = 0;
+
+            if (buf_len > sizeof(buf)) {
+                MODLOG_DFLT(WARN, "Command write too large; len=%u\n", buf_len);
+                return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+            }
+
+            rc = ble_hs_mbuf_to_flat(ctxt->om, buf, sizeof(buf), &buf_len);
+            if (rc != 0) {
+                MODLOG_DFLT(WARN, "Failed to read command bytes from mbuf; rc=%d\n", rc);
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
+            rc = drone_cmd_parse(buf, buf_len, &cmd);
+            if (rc != 0) {
+                MODLOG_DFLT(WARN, "Failed to parse command; rc=%d len=%u\n", rc, buf_len);
+                /* Try to build an ACK with whatever header we have. */
+                if (buf_len >= 2) {
+                    cmd.seq = buf[0];
+                    cmd.cmd = buf[1];
+                } else {
+                    cmd.seq = 0;
+                    cmd.cmd = DRONE_CMD_NOP;
+                }
+                cmd.payload_len = 0;
+                status = (uint8_t)(-rc);
+            } else {
+                status = (uint8_t)(-drone_handle_command(&cmd));
+            }
+
+            if (conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+                drone_ack_build(&cmd, status, drone_get_ms(), &ack);
+                (void)drone_send_ack(conn_handle, gatt_svr_chr_val_handle, &ack);
+            }
+
+            return 0;
         }
         goto unknown;
 
