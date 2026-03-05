@@ -92,22 +92,22 @@ Photographs of the prototype:
 **App Screenshots**
 
 ### Connect Screen
-![Connect screen](./app_connect.png)
+![Connect screen](./images/app_connect.png)
 
 ### Home Screen
-![Home screen](./app_home.png)
+![Home screen](./images/app_home.png)
 
 ### Manual Control
-![Control screen](./app_control.png)
+![Control screen](./images/app_control.png)
 
 ### Live Video Feed
-![Video screen](./app_video.png)
+![Video screen](./images/app_video.png)
 
 ## Prototype Photos
 
-![Drone prototype 1](./drone1.png)
-![Drone prototype 2](./drone2.png)
-![Drone prototype 3](./drone3.png)
+![Drone 1](./images/drone1.png)
+![Drone 2](./images/drone2.png)
+![Drone 3](./images/drone3.png)
 
 **Testing**
 
