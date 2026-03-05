@@ -91,7 +91,7 @@ Photographs of the prototype:
 ## App Screenshots
 
 ### Connect Screen
-![Drone connect screen](./documentation/pictures_for_draft_designd_document/app_connect.jpg) [file:14]
+![Drone connect screen](./pictures_for_draft_designd_document/app_connect.jpg) [file:14]
 
 ### Home Screen
 ![Drone home screen](./images/app_home.jpg) [file:12]
