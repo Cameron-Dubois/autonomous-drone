@@ -41,6 +41,30 @@ Providing a system that allows individual content creators to record themselves 
 
 **Personas**
 
+**Persona 1: YouTuber**
+
+Name: Alex
+Age: 25
+Occupation: YouTube Content Creator
+
+Alex produces travel and lifestyle videos for YouTube and often films alone while visiting new locations. Alex wants to include moving shots and aerial perspectives to make videos more engaging, but using a tripod limits the ability to capture dynamic footage. A smartphone-controlled drone would allow Alex to move the camera while appearing in the video, making it easier to create professional-looking content without needing another person to operate the camera.
+
+**Persona 2: Musician**
+
+Name: Maya
+Age: 28
+Occupation: Independent Musician
+
+Maya records live performances and music videos for social media platforms. Most recordings are done independently with limited equipment, which restricts camera movement and creative angles. With a drone controlled through a smartphone, Maya could capture overhead shots or move the camera during performances to create more visually engaging music videos.
+
+**Persona 3: Movie Producer**
+
+Name: Daniel
+Age: 34
+Occupation: Independent Film Producer
+
+Daniel works on small independent film projects with a limited production crew. Capturing aerial or moving shots often requires additional equipment or specialized drone operators, which increases production costs. A smartphone-controlled drone would allow Daniel to capture establishing shots and dynamic camera movement more easily, providing greater flexibility during filming without requiring extra personnel.
+
 **Research into existing designs**
 
 Several existing drone and camera systems provide aerial recording capabilities, but many are not optimized for simple smartphone-based operation by a single individual.
