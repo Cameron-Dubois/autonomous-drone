@@ -79,15 +79,15 @@ Through these design considerations, the system aims to provide a functional pro
 **Simulations**
 
 ### Evaluation {#evaluation}
-Our current prototype demonstrates that the core communication and motor control functions for the autonomous drone are functional. The mobile application successfully connects to the ESP32 controller via Bluetooth and enables the selective activation of individual propellers. These results, validated through structured testing, confirm that the basic design architecture is practical and provides a reliable foundation for future development. 
+Our current prototype demonstrates that the core communication and motor control functions for the autonomous drone are functional. The mobile application successfully connects to the ESP32 controller via Bluetooth and enables the selective activation of individual propellers. These results, validated through structured testing, confirm that the basic design architecture is practical and provides a reliable foundation for future development.
 
 **Functional Prototype**
 
-The functional prototype consists of an ESP32-based flight controller mounted on a quadcopter 3D-printed frame with four brushless motors and propellers powered by a LiPo battery system. The ESP32 serves as the central microcontroller, providing integrated Bluetooth connectivity and sufficient processing capability for current control functions and future autonomy features. Each motor is connected directly to a dedicated PWM-capable GPIO pin on the ESP32, with shared ground connections and separate power rails for logic and motor operation. 
+The functional prototype consists of an ESP32-based flight controller mounted on a quadcopter 3D-printed frame with four brushless motors and propellers powered by a LiPo battery system. The ESP32 serves as the central microcontroller, providing integrated Bluetooth connectivity and sufficient processing capability for current control functions and future autonomy features. Each motor is connected directly to a dedicated PWM-capable GPIO pin on the ESP32, with shared ground connections and separate power rails for logic and motor operation.
 
-The ESP32 firmware initializes Bluetooth advertising and accepts connections from mobile devices, as verified in our firmware test plan. The mobile application scans for the ESP32, establishes a Bluetooth connection, and provides controls for individual motors. Our testing successfully demonstrated stable Bluetooth connectivity, including device discovery and reliable reconnection across multiple connect/disconnect cycles. 
+The ESP32 firmware initializes Bluetooth advertising and accepts connections from mobile devices, as verified in our firmware test plan. The mobile application scans for the ESP32, establishes a Bluetooth connection, and provides controls for individual motors. Our testing successfully demonstrated stable Bluetooth connectivity, including device discovery and reliable reconnection across multiple connect/disconnect cycles.
 
-Photographs of the prototype: 
+Photographs of the prototype:
 
 **App Screenshots**
 
@@ -107,7 +107,7 @@ Photographs of the prototype:
 
 **Testing**
 
-Testing focused on verifying end-to-end functionality from mobile app input to physical motor response, following procedures outlined in our test plans. 
+Testing focused on verifying end-to-end functionality from mobile app input to physical motor response, following procedures outlined in our test plans.
 1. Bluetooth Connectivity Tests
 Executed firmware connectivity tests BLE-01 and BLE-02, confirming the ESP32 advertises correctly and accepts connections within 10 seconds. Completed 5 connect/disconnect cycles with 100 % success rate and no firmware crashes. Mobile app tests BT-01 and BT-02 verified device discovery, connection status updates, and clean disconnection handling.
 
@@ -122,24 +122,24 @@ All executed tests met success criteria, confirming reliable Bluetooth communica
 ## Appendix 1 – Problem Formulation {#appendix-1---problem-formulation}
 
 ### 1. Conceptualisations
-**System concept**  
+**System concept**
 
 The product is conceived as an **autonomous filming drone**: a quadcopter that captures video without requiring the user to pilot it. The user defines what they want to film (e.g. “follow me”, “orbit this area”, “cover this event”). The drone then flies and films autonomously. Control and monitoring are done via a mobile application over a wireless link. The system is designed so that filming and flying do not depend on drone piloting skills, making it suitable for content creators, sports filming, and event coverage where the focus is on the shot, not on stick control.
 
-**Stakeholders and users**  
-- **Content creator / filmmaker.** The primary user is someone who wants to self-document or capture footage without learning to pilot. Examples include solo YouTubers filming themselves (vlogs, activities, tutorials), crews or individuals filming athletes in sports, and event producers using single drones or **larger fleets** to document large events (e.g. sporting events, concerts) from multiple angles.  
-- **Development and maintenance.** The team (or future maintainers) who develop and update firmware and the mobile app, and who assemble or repair the hardware.  
+**Stakeholders and users**
+- **Content creator / filmmaker.** The primary user is someone who wants to self-document or capture footage without learning to pilot. Examples include solo YouTubers filming themselves (vlogs, activities, tutorials), crews or individuals filming athletes in sports, and event producers using single drones or **larger fleets** to document large events (e.g. sporting events, concerts) from multiple angles.
+- **Development and maintenance.** The team (or future maintainers) who develop and update firmware and the mobile app, and who assemble or repair the hardware.
 - **Subjects and bystanders.** People being filmed or in the operating environment. Safety and predictable autonomous behaviour matter in shared or crowded spaces.
 
-**Main functions (concept level)**  
-1. **Communicate.** Reliable two-way link between user and drone (commands, status, telemetry, and video stream).  
-2. **Actuate.** Drive the four propellers to achieve lift, orientation, and motion (manual control validated, autonomous flight planned).  
-3. **Film.** Capture video (and optionally stream it) for self-documentation, sports, or event coverage.  
-4. **Sense.** Perceive the environment and drone state to support autonomous framing, following, and safety.  
-5. **Navigate autonomously.** Execute filming behaviours (e.g. follow, orbit, waypoints) and avoid obstacles without manual piloting.  
+**Main functions (concept level)**
+1. **Communicate.** Reliable two-way link between user and drone (commands, status, telemetry, and video stream).
+2. **Actuate.** Drive the four propellers to achieve lift, orientation, and motion (manual control validated, autonomous flight planned).
+3. **Film.** Capture video (and optionally stream it) for self-documentation, sports, or event coverage.
+4. **Sense.** Perceive the environment and drone state to support autonomous framing, following, and safety.
+5. **Navigate autonomously.** Execute filming behaviours (e.g. follow, orbit, waypoints) and avoid obstacles without manual piloting.
 6. **Scale to fleets.** Support multiple drones documenting one event from several angles, coordinated from a single or small number of operators.
 
-**Context and scenario**  
+**Context and scenario**
 
 Use spans **solo creators** (e.g. YouTubers filming themselves), **sports** (filming athletes from the air), and **large events** (sporting events, concerts) where one or many drones provide multi-angle coverage without a pilot per drone. The system is intended for environments where autonomous flight is acceptable and where the value is in hands-free filming rather than manual piloting. This conceptualisation describes what the system is and does at a high level, without committing to low-level implementation details.
 
@@ -190,7 +190,7 @@ Several important design choices were clarified during the early stages of the p
 | Power and complexity             | Low power and simple             | Higher power and more complex    | Higher power and more complex             | Highest complexity           |
 | Fit for first prototype          | Chosen for first prototype       | Not used yet                     | Planned for later streaming               | Not planned                  |
 
-**Decision** 
+**Decision**
 
 Initially we chose BLE only because it was simple, low power, and enough for basic control. Through brainstorming and early research we concluded that BLE would not be enough for video streaming. For future versions we intend to move toward a hybrid BLE and WiFi approach so that BLE can handle control while WiFi handles higher bandwidth video when needed.
 
@@ -204,8 +204,8 @@ Initially we chose BLE only because it was simple, low power, and enough for bas
 | Matches goal of autonomous filming     | Does not match goal    | Matches goal for first version            | Best match but not required yet    |
 | Cost                                   | Lowest                 | Moderate                                  | Highest                            |
 
-**Decision** 
- 
+**Decision**
+
 We considered leaving the camera out to reduce complexity, cost, and data rate. After discussion we decided that a camera is essential because the main purpose of the system is autonomous filming and self documentation. We therefore treat a simple fixed camera as required for the first version. More advanced camera systems can be added in later iterations.
 
 #### 3. Subject tracking approach (still under evaluation)
@@ -219,7 +219,7 @@ We considered leaving the camera out to reduce complexity, cost, and data rate. 
 | Dependence on internet                | Can work offline                      | Works offline                           | Works offline                      |
 | Team experience level                 | Limited                               | Limited                                 | Feels most achievable now          |
 
-**Decision**  
+**Decision**
 
 We have not finalised a tracking approach yet. Brainstorming focused on two main options, computer vision and GPS with magnetometer. At this stage we expect to start with manual framing and simple behaviours, then introduce tracking using either computer vision, GPS with magnetometer, or a combination once we understand the hardware and software constraints better.
 
@@ -270,7 +270,7 @@ This appendix combines the **Test Plan** (developed prior to testing) and the **
 
 ### Administrative Details
 
-- **Date and location of testing:** Winter 2026; lab/development environment (indoor).
+- **Date and location of testing:** Winter 2026; room environment (indoor).
 - **Client or organization:** CSE123A Engineering Design Project I (UCSC BSOE), Group 3.
 - **Conducting the test:** Group 3 project team (firmware and connectivity tests executed by assigned team members).
 
@@ -286,21 +286,21 @@ This appendix combines the **Test Plan** (developed prior to testing) and the **
 | Host PC | Laptop with USB connection (serial monitor) |
 | Mobile device | iPhone 15 Pro, iOS 18.6.2 |
 | Serial monitor | ESP-IDF `idf.py monitor` |
-| BLE client | nRF Connect for iOS (Nordic Semiconductor) |
+| BLE client | nRF Connect for iOS |
 | WiFi client | iPhone WiFi settings (built-in) |
 
 ### Software and Firmware
 
 - **ESP-IDF:** v5.5-dev-3062-ge9bdd39599
-- **Firmware branch:** main (post-merge of `ble-command-layer`)
+- **Firmware branch:** main
 - **Projects tested:** `drone_ble`, `drone_wifi/softAP`
 
 ### Test Design (Variables & Sampling)
 
 - **Independent variables:** Connection attempt (BLE/WiFi), command type (ARM, SET_MOTOR_1, ESTOP), arm state (armed vs disarmed).
-- **Dependent variables:** Connection success (yes/no), time to connect, reconnect success rate, serial log output (GAP events, DHCP, command ACKs), motor state in firmware.
+- **Dependent variables:** Connection success (yes/no), time to connect, reconnect success rate, serial log output (GAP events, DHCP, command ACKs), motor state in serial monitor.
 - **Sampling:** Single-factor tests; BLE reconnect test used 5 repeated connect/disconnect cycles (n=5); other tests executed per procedure with results recorded once per run. Raw serial logs and screenshots retained as evidence.
-- **Data collection:** Digital (serial log copy-paste, screenshots); written notes for pass/fail and noteworthy observations.
+- **Data collection:** Digital (serial log copy-paste, screenshots); written notes for pass/fail and other noteworthy observations.
 
 ### Safety Precautions
 
@@ -309,7 +309,7 @@ This appendix combines the **Test Plan** (developed prior to testing) and the **
 
 ### External Factors (Observation)
 
-- Tests conducted indoors at room temperature; no controlled variation of temperature, RF interference, or humidity. Any observed connection delays or failures are noted in the results.
+- Tests conducted indoors. Any observed connection delays or failures are noted in the results.
 
 ---
 
@@ -554,17 +554,17 @@ All connectivity and command-layer tests met their pass criteria. BLE and WiFi b
 
 ## 6. Ideas for Further Experiments or Experimental Improvement
 
-- Extend the command set to cover high-level flight modes (ASCEND, DESCEND, FOLLOW_TOGGLE) that map to the app-level test plan (e.g., section 3.4 in `test-plan.md`).
+- Extend the command set to cover high-level flight modes (ASCEND, DESCEND, FOLLOW_TOGGLE).
 - Add latency measurement (timestamp + sequence ID) across multiple packets.
 - Add packet-loss measurement under noisy or marginal RF conditions.
 - Test failure-mode behavior (BLE drop mid-command, app crash, or phone battery loss).
-- Introduce formal sampling (e.g., multiple runs per test) and simple statistical summary where applicable.
+
 
 ---
 
 ## 7. Conclusion(s)
 
-This test plan was developed prior to testing and executed as documented. The test report shows that the ESP32-C3 firmware meets the stated objectives for BLE and WiFi connectivity and for the BLE command layer (ARM, motor throttle, E-STOP). All summary objectives in the table above were met. The results allow an independent third party to review the plan, design, data, and analysis and reach the same conclusions. This establishes a verified communication and command baseline for the autonomous drone; future motor control and autonomous behaviors will build on this validated transport and command layer and will connect to the mobile-app scenarios defined in the project test plan (e.g., E-STOP, ARM/DISARM flows, and future ASCEND/DESCEND/FOLLOW_TOGGLE behaviors).
+This test plan was developed prior to testing and executed as documented. The test report shows that the ESP32-C3 firmware meets the stated objectives for BLE and WiFi connectivity and for the BLE command layer (ARM, motor throttle, E-STOP). All summary objectives in the table above were met. The results allow anyone to review the plan, design, data, and analysis and reach the same conclusions. This establishes a verified communication and command baseline for the autonomous drone; future motor control and autonomous behaviors will build on this validated transport and command layer and will connect to the mobile-app scenarios defined in the project test plan (e.g., E-STOP, ARM/DISARM flows, and future ASCEND/DESCEND/FOLLOW_TOGGLE behaviors).
 
 ### Appendix 4 – Review {#appendix-4---review}
 
