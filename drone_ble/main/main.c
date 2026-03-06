@@ -19,6 +19,7 @@
 
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "motor.h"
 /* BLE */
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
@@ -550,6 +551,9 @@ void
 app_main(void)
 {
     int rc;
+
+    /* Initialize motor hardware before BLE starts */
+    motors_init();
 
     /* Initialize NVS — it is used to store PHY calibration data */
     esp_err_t ret = nvs_flash_init();

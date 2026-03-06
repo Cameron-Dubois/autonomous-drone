@@ -6,7 +6,7 @@ dependencies:
   nimble_peripheral_utils:
     dependencies: []
     source:
-      path: /Users/darinrahm/esp/esp-idf/examples/bluetooth/nimble/common/nimble_peripheral_utils
+      path: /home/stephenwb/esp/esp-idf/examples/bluetooth/nimble/common/nimble_peripheral_utils
       type: local
     version: '*'
 direct_dependencies:

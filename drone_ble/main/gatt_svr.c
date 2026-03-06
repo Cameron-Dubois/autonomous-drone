@@ -28,6 +28,7 @@
 #include "bleprph.h"
 #include "services/ans/ble_svc_ans.h"
 #include "esp_timer.h"
+#include "motor.h"
 
 /*** Maximum number of characteristics with the notify flag ***/
 #define MAX_NOTIFY 5
@@ -165,6 +166,15 @@ drone_ack_build(const drone_cmd_t *cmd, uint8_t status, uint32_t now_ms,
     out->drone_ms = now_ms;
 }
 
+/* Map 0-255 throttle to 0-8191 LEDC duty and drive the real motor. */
+static void
+drone_apply_motor(motor_t motor_id, uint8_t throttle)
+{
+    int duty = (throttle * 8191) / 255;
+    motor_set_on_off(motor_id, duty > 0);
+    motor_set_speed(motor_id, duty);
+}
+
 int
 drone_handle_command(const drone_cmd_t *cmd)
 {
@@ -181,15 +191,15 @@ drone_handle_command(const drone_cmd_t *cmd)
 
     case DRONE_CMD_DISARM:
         g_drone_armed = false;
-        /* When disarmed, force all throttles to 0. */
         drone_set_all_motors(0);
+        motors_stop_all();
         MODLOG_DFLT(INFO, "DRONE_CMD_DISARM seq=%u\n", cmd->seq);
         return 0;
 
     case DRONE_CMD_ESTOP:
-        /* Emergency stop: clear armed flag and zero all motors immediately. */
         g_drone_armed = false;
         drone_set_all_motors(0);
+        motors_stop_all();
         MODLOG_DFLT(INFO, "DRONE_CMD_ESTOP seq=%u\n", cmd->seq);
         return 0;
 
@@ -209,26 +219,15 @@ drone_handle_command(const drone_cmd_t *cmd)
                         cmd->cmd, cmd->seq);
             return -2;
         }
-        /* Interpret payload[0] as a 0–255 abstract throttle. */
-        switch (cmd->cmd) {
-        case DRONE_CMD_SET_MOTOR_1:
-            drone_set_motor_index(0, cmd->payload[0]);
-            break;
-        case DRONE_CMD_SET_MOTOR_2:
-            drone_set_motor_index(1, cmd->payload[0]);
-            break;
-        case DRONE_CMD_SET_MOTOR_3:
-            drone_set_motor_index(2, cmd->payload[0]);
-            break;
-        case DRONE_CMD_SET_MOTOR_4:
-            drone_set_motor_index(3, cmd->payload[0]);
-            break;
-        default:
-            break;
+        {
+            uint8_t throttle = cmd->payload[0];
+            motor_t mid = (motor_t)(cmd->cmd - DRONE_CMD_SET_MOTOR_1); /* 0-3 */
+            drone_set_motor_index(mid, throttle);
+            drone_apply_motor(mid, throttle);
+            MODLOG_DFLT(INFO,
+                        "DRONE_CMD_SET_MOTOR %d seq=%u throttle=%u duty=%d\n",
+                        mid + 1, cmd->seq, throttle, (throttle * 8191) / 255);
         }
-        MODLOG_DFLT(INFO,
-                    "DRONE_CMD_SET_MOTOR (id=0x%02x) seq=%u throttle=%u\n",
-                    cmd->cmd, cmd->seq, cmd->payload[0]);
         return 0;
 
     case DRONE_CMD_HEARTBEAT:
