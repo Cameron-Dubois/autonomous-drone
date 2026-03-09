@@ -81,10 +81,13 @@ export class RealDroneBleClient implements DroneBleClient {
     return this.connected?.id ?? null;
   }
 
-  async sendCommand(message: string): Promise<void> {
+  async sendCommand(message: Uint8Array | string): Promise<void> {
     if (!this.connected) throw new Error("BLE: not connected");
 
-    const base64 = Buffer.from(message, "utf8").toString("base64");
+    const bytes = typeof message === "string"
+      ? Buffer.from(message, "utf8")
+      : Buffer.from(message);
+    const base64 = bytes.toString("base64");
     await this.connected.writeCharacteristicWithResponseForService(
       SERVICE_UUID,
       CHARACTERISTIC_UUID,

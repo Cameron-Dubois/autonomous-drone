@@ -28,8 +28,8 @@ export interface DroneBleClient {
   /** Current connected device id (or null). */
   getConnectedDeviceId(): string | null;
 
-  /** Send a command to the drone. */
-  sendCommand(message: string): Promise<void>;
+  /** Send a command to the drone. Accepts raw bytes or a UTF-8 string. */
+  sendCommand(message: Uint8Array | string): Promise<void>;
 
   /** Subscribe to telemetry. Returns an unsubscribe function. */
   subscribeTelemetry(cb: BleTelemetryCallback): () => void;

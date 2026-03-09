@@ -4,6 +4,7 @@
 
 import type { DroneComms } from "./comms";
 import type { Command, Telemetry } from "../protocol/types";
+import { buildCommandBytes } from "../protocol/types";
 import { getBleClient, getStoredDeviceId, setStoredDeviceId } from "./BLE";
 
 const DEFAULT_TELEMETRY: Telemetry = {
@@ -134,10 +135,10 @@ export function createBleComms(): DroneComms {
     async send(cmd: Command): Promise<void> {
       const client = getBleClient();
       if (!client.getConnectedDeviceId()) {
-        return; // Silently no-op when disconnected
+        return;
       }
-      const message = JSON.stringify(cmd);
-      await client.sendCommand(message);
+      const bytes = buildCommandBytes(cmd);
+      await client.sendCommand(bytes);
     },
 
     subscribeTelemetry(cb: (t: Telemetry) => void): () => void {

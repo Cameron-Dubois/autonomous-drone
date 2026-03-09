@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform, PermissionsAndroid } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform, PermissionsAndroid, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { getBleClient, setStoredDeviceId, type BleDeviceSummary } from "../../../src/comms/BLE";
@@ -34,6 +34,8 @@ export default function Connect() {
   const [wifiNetworks, setWifiNetworks] = useState<WifiNetworkSummary[]>([]);
   const [wifiError, setWifiError] = useState<string | null>(null);
   const [wifiRefresh, setWifiRefresh] = useState(0);
+  const [manualCmd, setManualCmd] = useState("");
+  const [cmdLog, setCmdLog] = useState<{ text: string; ok: boolean }[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,6 +192,23 @@ export default function Connect() {
     }
   }, []);
 
+  const handleManualSend = useCallback(async () => {
+    const trimmed = manualCmd.trim();
+    if (!trimmed) return;
+    try {
+      const client = getBleClient();
+      const hexBytes = trimmed.split(/[\s,]+/).map((s) => parseInt(s, 16));
+      if (hexBytes.some(isNaN)) throw new Error("Invalid hex. Use format: 00 01 00");
+      await client.sendCommand(new Uint8Array(hexBytes));
+      const hexStr = hexBytes.map((b) => b.toString(16).padStart(2, "0")).join(" ");
+      setCmdLog((prev) => [{ text: `> ${hexStr}`, ok: true }, ...prev].slice(0, 50));
+      setManualCmd("");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Send failed";
+      setCmdLog((prev) => [{ text: `> ${trimmed}  [ERROR: ${msg}]`, ok: false }, ...prev].slice(0, 50));
+    }
+  }, [manualCmd]);
+
   const connectedId = (() => {
     try {
       return getBleClient().getConnectedDeviceId();
@@ -300,6 +319,38 @@ export default function Connect() {
               ))}
             </View>
           </View>
+
+          {/* Manual BLE Command Section */}
+          {isConnected && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Manual BLE Command</Text>
+              <View style={styles.cmdRow}>
+                <TextInput
+                  style={styles.cmdInput}
+                  value={manualCmd}
+                  onChangeText={setManualCmd}
+                  placeholder="e.g. 00 01 00 (seq cmd len ...payload)"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="send"
+                  onSubmitEditing={handleManualSend}
+                />
+                <Pressable style={[styles.btn, styles.btnSend]} onPress={handleManualSend}>
+                  <Text style={styles.btnLabel}>Send</Text>
+                </Pressable>
+              </View>
+              {cmdLog.length > 0 && (
+                <View style={styles.cmdLogBox}>
+                  {cmdLog.map((entry, i) => (
+                    <Text key={i} style={[styles.cmdLogLine, !entry.ok && styles.cmdLogError]}>
+                      {entry.text}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
 
           {/* WiFi Section */}
           <View style={styles.section}>
@@ -512,5 +563,46 @@ const styles = StyleSheet.create({
         fontSize: fontSizes.xs,
         color: "rgba(255,255,255,0.4)",
         letterSpacing: 0.5,
+    },
+    cmdRow: {
+        flexDirection: "row",
+        gap: spacing.sm,
+        marginTop: spacing.md,
+    },
+    cmdInput: {
+        flex: 1,
+        height: 48,
+        borderRadius: radii.sm,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        paddingHorizontal: spacing.md,
+        color: "white",
+        fontSize: fontSizes.sm,
+        fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    },
+    btnSend: {
+        minHeight: 48,
+        paddingHorizontal: spacing.xl,
+        borderColor: "rgba(0,242,255,0.3)",
+        backgroundColor: "rgba(0,242,255,0.1)",
+    },
+    cmdLogBox: {
+        marginTop: spacing.md,
+        padding: spacing.md,
+        borderRadius: radii.sm,
+        backgroundColor: "rgba(255,255,255,0.03)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.06)",
+        maxHeight: 200,
+    },
+    cmdLogLine: {
+        fontSize: fontSizes.xs,
+        fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+        color: "rgba(0,242,255,0.7)",
+        marginBottom: spacing.xs,
+    },
+    cmdLogError: {
+        color: "rgba(255,80,80,0.8)",
     },
 });

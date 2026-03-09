@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from "react-native";
 import { useComms } from "../../../src/context/CommsContext";
 import { spacing, fontSizes, radii, getPanelDimensions } from "../../../src/theme/layout";
+import { buildRawCommandBytes, DroneCmd } from "../../../src/protocol/types";
 
 type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW" | "CENTER";
 
@@ -109,9 +110,16 @@ export default function Control() {
     const { width: screenWidth } = useWindowDimensions();
     const { contentPadding } = getPanelDimensions(screenWidth, 0);
 
-    const handleDPad = useCallback((dir: Direction) => {
-        // Placeholder: will be wired to BLE commands later
-        console.log("DPAD:", dir);
+    const handleDPad = useCallback(async (dir: Direction) => {
+        if (dir === "CENTER") {
+            try {
+                const { getBleClient } = await import("../../../src/comms/BLE");
+                const client = getBleClient();
+                await client.sendCommand(buildRawCommandBytes(DroneCmd.ARM));
+            } catch (e) {
+                console.log("BLE send failed:", e);
+            }
+        }
     }, []);
 
     return (
