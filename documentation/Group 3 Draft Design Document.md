@@ -320,9 +320,9 @@ We used the following tools and processes to coordinate work:
 - **GitHub** – The repository was used for all code, documentation, and design files.
 - **Discord** – Discord served as the main channel for day-to-day messaging, quick questions, meeting coordination, and sharing updates between synchronous meetings.
 
-### Appendix 3 – Autonomous Drone – Firmware Connectivity & Command Test Plan & Results
+### Appendix 3 – Manufacturing Test Plan & Results {#appendix-3---test-plan-&-results}
 
-This appendix combines the **Test Plan** (developed prior to testing) and the **Test Report** (data, analysis, and conclusions), in line with standard engineering test documentation.
+This section defines a generic manufacturing and verification test plan for future engineers who build or maintain production versions of the autonomous drone.
 
 ---
 
@@ -330,309 +330,264 @@ This appendix combines the **Test Plan** (developed prior to testing) and the **
 
 ### Scope
 
-- **System under test:** ESP32-C3 firmware for the autonomous drone (BLE stack, WiFi SoftAP, and BLE command layer).
-- **Goal of testing:** Validate connectivity, reliability, and the structured BLE command protocol so that the design meets its communication and safety objectives before integration with motors and higher-level flight modes.
-- **Parameters and justification:** BLE and WiFi were tested because they are the primary links between the mobile app and the drone; the command layer (ARM/DISARM/ESTOP, motor throttle) was tested because it is the interface on which all future flight logic depends.
-- **Expectations (hypothesis):** The ESP32-C3 will advertise over BLE and accept connections within 10 seconds; it will tolerate at least 5 connect/disconnect cycles without failure; the SoftAP will assign an IP via DHCP and remain stable for at least 2 minutes; and the BLE command layer will accept ARM, SET_MOTOR_1, and ESTOP in accordance with the protocol and enforce safety (no motor change when disarmed).
+- **System under test:** Fully assembled production drones and subassemblies (flight controller PCB, power system, motors).
+- **Goal of testing:** Verify that manufactured product meets the project’s functional and safety objectives before being accepted for use (mechanical integrity, power behavior, electronics health, communications, motor mapping, and basic flight/failsafe behavior).
+- **Parameters and justification:** Tests focus on parameters that directly impact safety and reliability.
+- **Expectations (hypothesis):** Units built to the documented design and assembly process will pass all six manufacturing tests without rework.
 
 ### Administrative Details
 
-- **Date and location of testing:** Winter 2026; room environment (indoor).
-- **Client or organization:** CSE123A Engineering Design Project I (UCSC BSOE), Group 3.
-- **Conducting the test:** Group 3 project team (firmware and connectivity tests executed by assigned team members).
+- **Date and location of testing:** To be filled in per production run
+- **Client or organization:** Future owner of the autonomous drone design
+- **Conducting the test:** Manufacturing / Quality Assurance engineers or technicians following this plan.
 
 ---
 
-## 2. Test Environment (Apparatus & Design of Experiment)
+## 2. Manufacturing Test Definitions
 
-### Apparatus and Measurement Equipment
+### TEST ID: MECH-01 — Visual Mechanical & Assembly Inspection
 
-| Item | Description / Model |
-|------|----------------------|
-| Development board | ESP32-C3 development board |
-| Host PC | Laptop with USB connection (serial monitor) |
-| Mobile device | iPhone 15 Pro, iOS 18.6.2 |
-| Serial monitor | ESP-IDF `idf.py monitor` |
-| BLE client | nRF Connect for iOS |
-| WiFi client | iPhone WiFi settings (built-in) |
+**Scope & goal**
 
-### Software and Firmware
+- **System under test**: Fully assembled autonomous drone.
+- **Goal**: Confirm each assembled drone matches mechanical drawings and is safe to power.
 
-- **ESP-IDF:** v5.5-dev-3062-ge9bdd39599
-- **Firmware branch:** main
-- **Projects tested:** `drone_ble`, `drone_wifi/softAP`
+**Test design (variables, sampling, apparatus)**
 
-### Test Design (Variables & Sampling)
+- **Type**: Qualitative inspection (yes/no, acceptable/unacceptable).
+- **Independent variable**: Individual production unit.
+- **Dependent variables**: Pass/fail for each checklist item.
+- **Sampling**: Every unit (100% inspection); performed before the unit is powered on for the first time.
+- **Apparatus**: Mechanical drawings, good lighting.
 
-- **Independent variables:** Connection attempt (BLE/WiFi), command type (ARM, SET_MOTOR_1, ESTOP), arm state (armed vs disarmed).
-- **Dependent variables:** Connection success (yes/no), time to connect, reconnect success rate, serial log output (GAP events, DHCP, command ACKs), motor state in serial monitor.
-- **Sampling:** Single-factor tests; BLE reconnect test used 5 repeated connect/disconnect cycles (n=5); other tests executed per procedure with results recorded once per run. Raw serial logs and screenshots retained as evidence.
-- **Data collection:** Digital (serial log copy-paste, screenshots); written notes for pass/fail and other noteworthy observations.
+**Procedure (outline)**
 
-### Safety Precautions
+1. Place powered-off unit on inspection bench and compare it to the latest mechanical drawing.
+2. Verify they are the same.
+3. Confirm each propeller is installed in the correct position and orientation; rotate slowly by hand to check for interference.
+4. Inspect wiring for pinched insulation, unsecured leads, and exposed conductors; verify connectors are fully seated.
+5. Record pass/fail against the checklist; photograph any defects.
 
-- No propellers or motor power applied during firmware connectivity and command-layer tests; validation was via serial logs and in-memory state only.
-- USB power only for ESP32-C3; no high-current or high-voltage connections during these tests.
+**Safety & external factors**
 
-### External Factors (Observation)
+- No power applied; battery disconnected during inspection.
+- Be cautious of sharp edges on printed parts.
+- Note any unusual lighting or visibility conditions that could affect inspection quality.
 
-- Tests conducted indoors. Any observed connection delays or failures are noted in the results.
+**Data collection**
 
----
+- Complete a digital or paper checklist per unit.
+- Attach photographs of any defects or borderline conditions.
 
----
+**Pass criteria**
 
-## 3. Test Cases (Procedures)
-
-Each test below includes a **step-by-step procedure** to conduct the test, **pass criteria** (expectations), and where applicable **evidence** (data collected). Procedures were followed as written during execution; results are reported in Section 4.
-
----
-
-### BLE-01 — BLE Scan + Connect
-
-**Purpose:**
-Verify that the ESP32 advertises correctly and accepts connections.
-
-**Setup:**
-- Flash `drone_ble`
-- Reset board
-- Open serial monitor
-
-**Steps:**
-1. On iPhone, open nRF connect.
-2. Scan for BLE devices.
-3. Verify device name appears.
-4. Connect to device.
-
-**Pass Criteria:**
-- Device appears within 10 seconds.
-- Connection succeeds within 10 seconds.
-- Serial monitor logs show GAP connect event.
-
-**Evidence to Capture:**
-#### iPhone Connected View
-![BLE Connected](images/ble-scan-connected.png)
-
-#### Attribute Table View
-![BLE Attribute Table](images/ble_attribute_table.png)
-
-### Serial Log Snippet Showing Connection Event.
-    - I (23318) NimBLE: connection established; status=0
-    - I (23318) NimBLE: handle=1...
-    - I (23348) NimBLE:  conn_itvl=24 conn_latency=0 supervision_timeout=72 encrypted=0 authenticated=0 bonded=0
+- 0 cracked, warped, or obviously damaged structural parts.
+- 0 mis-oriented or rubbing propellers.
+- 0 exposed conductors or unsafe wiring.
 
 ---
 
-### BLE-02 — BLE Reconnect Reliability
+### TEST ID: PWR-01 — Power-On & Idle Current Verification
 
-**Purpose:**
-Verify stability across repeated connect/disconnect cycles.
+**Scope & goal**
 
-**Setup:**
-- Device powered and advertising.
-- Serial monitor open.
+- **System under test**: Complete drone with production power electronics and firmware.
+- **Goal**: Verify power rails, boot behavior, and idle current are within specification.
 
-**Steps:**
-1. Connect to device.
-2. Disconnect from iPhone.
-3. Reconnect.
-4. Repeat 5 times.
+**Test design (variables, sampling, apparatus)**
 
-**Pass Criteria:**
-- At least 5/5 successful reconnect attempts.
-- No firmware crashes or resets.
-- Advertising resumes after disconnect.
+- **Type**: Quantitative electrical test.
+- **Independent variable**: Input supply (battery vs. bench supply).
+- **Dependent variables**: Boot success, peak inrush current, steady-state idle current, supply voltage.
+- **Sampling**: Every unit or defined batch sampling.
+- **Apparatus**: Bench supply or production battery, inline current measurement, voltmeter, safe test stand/mat.
 
-**Results:**
-- Attempts: 5
-- Success: 5/5
-- Advertising resumed after each disconnect: Yes
-- Time-to-reconnect: ~instant (<1s, perceived)
-- Crashes/resets: None observed
-- Disconnect lines:
-    - I (8928) NimBLE: disconnect; reason=531
-    - I (36668) NimBLE: connection established; status=0
-    - these repeated 5 times
+**Procedure (outline)**
 
----
+1. Connect drone to bench supply (with current limit) or a known-good production battery.
+2. Measure and record input voltage and current limit settings.
+3. Power on the drone and observe peak inrush current and steady-state idle current once boot is complete.
+4. Confirm status indicators or telemetry show that firmware booted successfully (no repeating resets).
 
-### WIFI-01 — SoftAP Join + DHCP
+**Safety & external factors**
 
-**Purpose:**
-Verify SoftAP initialization and DHCP functionality.
+- Use current limits on bench supply; keep flammable materials away.
+- Ensure adequate ventilation; monitor for abnormal heating or smell.
+- Record ambient temperature if it may affect current draw.
 
-**Setup:**
-- Flash `drone_wifi/softAP`
-- Reset board
-- Serial monitor open
+**Data collection**
 
-**Steps:**
-1. On iPhone, open WiFi settings.
-2. Select SoftAP SSID.
-3. Enter password if required.
-4. Confirm connection.
+- Log input voltage, current limit, peak inrush current, and steady-state idle current for each unit.
+- Record pass/fail plus any anomalies in a shared spreadsheet or database.
 
-**Pass Criteria:**
-- Connection succeeds within 15 seconds.
-- IP address assigned (192.168.4.x).
-- Serial monitor logs show station join event and DHCP started.
+**Pass criteria**
 
-**Evidence to Capture:**
-- Screenshot of WiFi settings with assigned IP (inside the images folder).
-- Serial log:
-    - I (492) wifi:mode : softAP (40:4c:ca:89:af:09)
-    - I (178902) wifi:station: 5a:a4:48:d9:87:40 join, AID=1
-    - I (180112) esp_netif_lwip: DHCP server assigned IP to a client, IP is: 192.168.4.2
-
-**Result**
-- Successful
-- Notes: Connected <15s, IP 192.168.4.2 assigned, no resets observed.
+- Drone boots from power-on to ready state.
+- Peak inrush current and idle current fall within defined allowable ranges.
+- No abnormal heating, smell, or cycling resets during the observation period.
 
 ---
 
-### WIFI-02 — SoftAP Stability (2-Minute Hold)
+### TEST ID: PCB-01 — Electronics Self-Test & Sensor Sanity Check
 
-**Purpose:**
-Verify connection stability under idle conditions.
+**Scope & goal**
 
-**Setup:**
-- Connected to SoftAP via IPhone.
+- **System under test**: Assembled flight controller PCB with production firmware.
+- **Goal**: Confirm that the microcontroller and critical sensors (e.g., IMU, barometer, magnetometer) are present and functional.
 
-**Steps:**
-1. Remain connected for 2 minutes.
-2. Observe serial logs for disconnect events.
+**Test design (variables, sampling, apparatus)**
 
-**Pass Criteria:**
-- No unexpected disconnect.
-- No firmware reset.
-- No DHCP restart events.
+- **Type**: Mixed qualitative/quantitative functional test.
+- **Independent variable**: Unit under test.
+- **Dependent variables**: Self-test result code, sensor responsiveness, and basic value ranges.
+- **Sampling**: 100 % of PCBs before integration into airframes.
+- **Apparatus**: Test jig or debug interface, host PC/machine, self-test script or tool.
 
-**Results:**
-- Duration: >2 minutes (observed)
-- Unexpected disconnects: None observed
-- Firmware resets: None observed
-- DHCP restart events: None observed
-- Validation method: Successful search `http://192.168.4.1/` after >2 minutes (page returned: "esp32 c3 test alive")
+**Procedure (outline)**
 
-**Serial Logs**
-- I (542) esp_netif_lwip: DHCP server started on interface WIFI_AP_DEF with IP: 192.168.4.1
-- I (9702) esp_netif_lwip: DHCP server assigned IP to a client, IP is: 192.168.4.2
+1. Connect PCB or fully assembled drone to the test jig or debug port.
+2. Trigger the firmware self-test routine and read back the summary status.
+3. Query each required sensor at rest and record a short window of data for each.
+4. Check that values are within plausible ranges.
 
----
+**Safety & external factors**
 
-### BLE-03 — Command Layer: ARM / Motor / E-STOP
+- Follow Electrostatic Discharge precautions when handling bare PCBs.
+- Ensure board is mechanically supported to avoid stressing solder joints.
+- Write down the room temperature and local pressure if they change the sensor readings.
 
-**Purpose:**
-Verify the structured BLE command protocol, ACK behavior, and basic safety rules (ARM required before motor commands, E-STOP zeros all motors).
+**Data collection**
 
-**Command Packet Format (App → ESP32):**
+- Store self-test status codes and raw sensor snapshots with unit serial numbers.
+- Keep logs or CSV exports from the test jig software for later analysis.
 
-- Byte 0: `seq` — sequence number (0–255)
-- Byte 1: `cmd` — command ID
-  - `0x01` = `DRONE_CMD_ARM`
-  - `0x02` = `DRONE_CMD_DISARM`
-  - `0x03` = `DRONE_CMD_ESTOP`
-  - `0x10` = `DRONE_CMD_SET_MOTOR_1`
-- Byte 2: `payload_len` — number of payload bytes
-- Bytes 3..N: `payload` — command-specific
+**Pass criteria**
 
-**ACK Packet Format (ESP32 → App, via Notify):**
-
-- Byte 0: `seq` — copied from command
-- Byte 1: `cmd` — copied from command
-- Byte 2: `status` — `0x00 = OK`, non‑zero = error
-- Bytes 3–6: `drone_ms` — `uint32_t` ms since boot (little-endian)
-
-**Setup:**
-- Firmware branch: `ble-command-layer`
-- Flash `drone_ble` (this project) with the BLE command layer implemented.
-- Open `idf.py monitor` to watch serial logs.
-- On iPhone, open **nRF Connect**, connect to `DroneBLE`, and enable **Notify** on the custom characteristic (handle 29 in current logs).
-
-**Steps & Expected Results:**
-
-1. **ARM — `seq=1, cmd=ARM`**
-   - Write hex: `01 01 00`
-   - Serial:
-     - `DRONE_CMD_ARM seq=1`
-     - `motor_state armed=1 m1=0 m2=0 m3=0 m4=0`
-   - App receives 7-byte ACK with:
-     - Byte 0 = `0x01`, Byte 1 = `0x01`, Byte 2 = `0x00` (status OK).
-
-2. **Set Motor 1 Throttle While Armed — `seq=2, cmd=SET_MOTOR_1`**
-   - Write hex: `02 10 01 80` (throttle = `0x80` / 128)
-   - Serial:
-     - `DRONE_CMD_SET_MOTOR (id=0x10) seq=2 throttle=128`
-     - `motor_state armed=1 m1=128 m2=0 m3=0 m4=0`
-   - ACK status byte remains `0x00`.
-
-3. **Emergency Stop — `seq=3, cmd=ESTOP`**
-   - Write hex: `03 03 00`
-   - Serial:
-     - `DRONE_CMD_ESTOP seq=3`
-     - `motor_state armed=0 m1=0 m2=0 m3=0 m4=0`
-   - ACK status byte = `0x00`.
-
-4. **Set Motor While Disarmed (Safety Check) — `seq=4, cmd=SET_MOTOR_1`**
-   - Write hex: `04 10 01 40`
-   - Serial:
-     - `SET_MOTOR ignored while disarmed (id=0x10 seq=4)`
-   - ACK status byte is **non‑zero** (error).
-
-**Pass Criteria:**
-
-- All four commands produce the expected serial logs above.
-- ACKs are received for each write with correct `seq` and `cmd`.
-- `SET_MOTOR_1` only changes `m1` when the system is armed (after ARM and before E-STOP/DISARM).
-- After E-STOP, all motors stay at 0 even if additional `SET_MOTOR_1` commands are sent.
+- Self-test completes with an “OK” or equivalent status code.
+- All required sensors respond without communication errors.
+- All measured values fall within predefined acceptable ranges for a unit at rest.
 
 ---
 
-## 4. Data Collected, Summary of Results & Discussion
+### TEST ID: COMMS-01 — Control Link & Protocol Verification
 
-### Test Report Summary Table
+**Scope & goal**
 
-| Objective (Target) | Result | Met? | Discussion |
-|--------------------|--------|------|-------------|
-| BLE device discoverable within 10 s | Device appeared; connection within 10 s | Yes | ESP32 advertised correctly; GAP connect event logged. |
-| BLE connection succeeds within 10 s | Connection succeeded within 10 s | Yes | nRF Connect connected; serial showed connection established. |
-| BLE reconnect: ≥5/5 cycles, no crash | 5/5 reconnects; no resets | Yes | Advertising resumed after each disconnect; time-to-reconnect &lt;1 s perceived. |
-| SoftAP: client joins, DHCP assigns IP (192.168.4.x) | IP 192.168.4.2 assigned | Yes | Station join and DHCP logs present; connection &lt;15 s. |
-| SoftAP: no disconnect for 2 minutes | &gt;2 min connected; no disconnect | Yes | No DHCP restart; http://192.168.4.1/ returned "esp32 c3 test alive" after 2 min. |
-| Command ARM: serial and ACK as specified | Correct serial; 7-byte ACK status=0x00 | Yes | motor_state armed=1; ACK seq/cmd/status matched. |
-| Command SET_MOTOR_1 while armed: m1 updated | m1=128; ACK OK | Yes | Throttle 0x80 applied when armed. |
-| Command ESTOP: all motors zero, armed=0 | m1=m2=m3=m4=0, armed=0 | Yes | ESTOP cleared state; ACK status=0x00. |
-| SET_MOTOR while disarmed: ignored, ACK error | Serial "ignored while disarmed"; non-zero status | Yes | Safety rule enforced; no motor change when disarmed. |
+- **System under test**: Communication link between ground station (app/controller) and drone, including command/ACK protocol.
+- **Goal**: Verify that control commands are correctly received, acknowledged, and constrained by safety rules.
 
-### Analysis and Interpretation of Data
+**Test design (variables, sampling, apparatus)**
 
-All connectivity and command-layer tests met their pass criteria. BLE and WiFi behavior was consistent with the design objectives: the ESP32-C3 is suitable as the communication and command interface for the drone. The BLE command layer correctly enforces arm state and emergency stop. Results are based on serial logs and in-memory state; no physical motor load was applied. Raw data (serial log snippets and screenshots) are included in the test-case sections above.
+- **Type**: Functional communications test.
+- **Independent variables**: Command type (e.g., ARM, DISARM, ESTOP, basic movement or throttle commands).
+- **Dependent variables**: ACK success/failure codes, internal state transitions, latency.
+- **Sampling**: 100 % of units.
+- **Apparatus**: Ground station or scripted test client, log capture, safe bench or fixture.
+
+**Procedure (outline)**
+
+1. Establish a control link between the ground station and the drone on a bench or fixture.
+2. Send a scripted sequence of commands including ARM, small thrust changes, ESTOP, DISARM, and at least one “illegal” command (such as thrust while disarmed).
+3. Capture command/ACK logs at both ends and record any internal state reported by telemetry.
+
+**Safety & external factors**
+
+- Perform on a secured bench or fixture; do not allow free-flight for this test.
+- Either remove props or limit motor outputs to low test values.
+- Minimize radio-frequency interference sources nearby when evaluating latency behavior.
+
+**Data collection**
+
+- Save timestamped command and ACK logs from both ground station and drone.
+- Record any protocol errors, timeouts, and observed latencies per command type.
+
+**Pass criteria**
+
+- Every test command receives an ACK with matching ID and correct success/error status.
+- Illegal commands (e.g., motor command while disarmed) are rejected and do not change motor state.
+- ESTOP forces all motor outputs to a safe value within the specified time and requires a deliberate re-arm before further motion.
 
 ---
 
-## 5. Known Limitations (Current Phase)
+### TEST ID: SYS-01 — Motor Mapping & Spin-Up Test (Tethered / No Lift-Off)
 
-- Command layer currently exposes ARM/DISARM/ESTOP and a single-motor throttle API; high‑level flight modes (ASCEND/DESCEND/FOLLOW_TOGGLE) are not implemented yet.
-- No encryption/bonding testing performed.
-- No automated latency or packet‑loss measurement implemented yet (timestamp is present in ACKs for future tooling).
-- No motor hardware integrated; tests are validated via logs and in‑memory throttle state only.
+**Scope & goal**
+
+- **System under test**: Fully assembled drone with motors and ESCs, on a tether or fixture.
+- **Goal**: Ensure each logical motor drives the correct physical motor, in the correct direction, with smooth low-power response.
+
+**Test design (variables, sampling, apparatus)**
+
+- **Type**: Functional system-level test.
+- **Independent variables**: Commanded motor channel and throttle level.
+- **Dependent variables**: Observed motor spin, direction, and current draw.
+- **Sampling**: Every unit before first free-flight.
+- **Apparatus**: Mechanical fixture or tether, propellers, eye and hearing protection.
+
+**Procedure (outline)**
+
+1. Secure the drone in a test fixture or tether so it cannot lift off.
+2. ensure propellers command each motor individually to low and then medium test speeds.
+3. Observe which physical motor spins and confirm rotation direction; listen and feel for abnormal vibration or noise.
+4. Record current draw per motor channel if available.
+
+**Safety & external factors**
+
+- Always secure the drone in a fixture and keep hands clear of rotating parts.
+- Use eye and hearing protection when motors are spinning (if needed).
+- Note any unusual ambient vibration or mechanical noise in the test area.
+
+**Data collection**
+
+- Record pass/fail for motor ID and direction per channel.
+- Log current draw and any abnormal observations for units that need rework.
+
+**Pass criteria**
+
+- Logical motor IDs match the correct physical motors for all channels.
+- All motors spin in the intended direction with no abnormal vibration or noise.
+- Measured current per motor lies within expected limits for the test speeds.
 
 ---
 
-## 6. Ideas for Further Experiments or Experimental Improvement
+### TEST ID: FLT-01 — Production Acceptance Hover & Failsafe Test (Sample Units)
 
-- Extend the command set to cover high-level flight modes (ASCEND, DESCEND, FOLLOW_TOGGLE).
-- Add latency measurement (timestamp + sequence ID) across multiple packets.
-- Add packet-loss measurement under noisy or marginal RF conditions.
-- Test failure-mode behavior (BLE drop mid-command, app crash, or phone battery loss).
+**Scope & goal**
 
+- **System under test**: Representative production drones in a safe test environment.
+- **Goal**: Confirm that units can maintain a stable hover and execute basic failsafe behavior (e.g., link loss response) as specified.
+
+**Test design (variables, sampling, apparatus)**
+
+- **Type**: System-level flight test.
+- **Independent variables**: Unit sample, commanded altitude, control link state.
+- **Dependent variables**: Position/altitude deviation during hover, behavior when link is lost or degraded.
+- **Sampling**: Any unit that passes the previous tests moves onto this one.
+- **Apparatus**: Safe test area or netted flight cage, ground station, means to log telemetry and link state.
+
+**Procedure (outline)**
+
+1. In a designated test area, take off and climb to a fixed test altitude (for example, 2–3 m above ground).
+2. Command a hover and maintain it for a defined time window while recording position and altitude deviations.
+3. Intentionally drop or degrade the control link according to the documented failsafe scenario and observe behavior until landing or timeout.
+
+**Safety & external factors**
+
+- Conduct tests only in a safe, controlled area (e.g., netted flight cage or open test range) with observers briefed on emergency procedures.
+- Comply with all relevant safety and airspace regulations.
+- Record environmental conditions such as wind speed, temperature, and lighting.
+
+**Data collection**
+
+- Log telemetry (position, altitude, link status) for the full duration of the test.
+- Capture notes or video for any unexpected behaviors during hover or failsafe response.
+
+**Pass criteria**
+
+- During hover, position and altitude remain within defined tolerances/ranges for the duration of the test.
+- When the link is lost or degraded, the drone follows the documented failsafe policy (e.g., hover then land, or return-to-home then land) and does not exhibit uncontrolled motion or fly-away behavior.
 
 ---
-
-## 7. Conclusion(s)
-
-This test plan was developed prior to testing and executed as documented. The test report shows that the ESP32-C3 firmware meets the stated objectives for BLE and WiFi connectivity and for the BLE command layer (ARM, motor throttle, E-STOP). All summary objectives in the table above were met. The results allow anyone to review the plan, design, data, and analysis and reach the same conclusions. This establishes a verified communication and command baseline for the autonomous drone; future motor control and autonomous behaviors will build on this validated transport and command layer and will connect to the mobile-app scenarios defined in the project test plan (e.g., E-STOP, ARM/DISARM flows, and future ASCEND/DESCEND/FOLLOW_TOGGLE behaviors).
-
 ### Appendix 4 – Review {#appendix-4---review}
 
 **One paragraph from each team member**
