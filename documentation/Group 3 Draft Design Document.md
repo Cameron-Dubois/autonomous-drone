@@ -28,16 +28,15 @@ Group 3 Draft Design Document
 
 **Need Statement**
 
-Many independent content creators need dynamic video footage but do not have access to a second person to operate a camera or drone. For example, a travel vlogger walking through a city or a fitness instructor recording an outdoor workout often needs moving shots or aerial perspectives to make their videos more engaging. Current recording setups such as tripods provide only fixed camera angles, while most drones require a dedicated controller and experienced operator. As a result, individuals working alone struggle to capture professional-looking footage. There is a need for a drone system that can be easily controlled by a smartphone, allowing a single user to move the drone and record video simultaneously without requiring additional personnel.
+There is a need to simplify the process of piloting a drone by removing the requirement for continuous manual control.
+
+**Design Objective**
+
+The objective of this project is to create a pilotless autonomous drone that is capable of following a user.
 
 **Goal Statement**
 
-The goal of this project is to design a drone that can be controlled directly from a smartphone using a simple directional interface. When a user presses a direction on the phone, the drone will move in the corresponding direction while capturing video.
-Key goals include:
-Enabling smartphone-based directional control of the drone.
-Allowing users to record video while controlling the drone.
-Creating an intuitive control interface that requires minimal training.
-Providing a system that allows individual content creators to record themselves without a second operator.
+The goal of this project is to design a pilotless autonomous drone that follows a user, enabling hands-free filming without continuous manual control.
 
 **Personas**
 
