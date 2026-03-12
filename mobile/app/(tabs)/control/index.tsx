@@ -110,17 +110,68 @@ export default function Control() {
     const { width: screenWidth } = useWindowDimensions();
     const { contentPadding } = getPanelDimensions(screenWidth, 0);
 
-    const handleDPad = useCallback(async (dir: Direction) => {
-        if (dir === "CENTER") {
-            try {
-                const { getBleClient } = await import("../../../src/comms/BLE");
-                const client = getBleClient();
-                await client.sendCommand(buildRawCommandBytes(DroneCmd.ARM));
-            } catch (e) {
-                console.log("BLE send failed:", e);
-            }
+    const THROTTLE_20 = Math.round(255 * 0.2);
+    const THROTTLE_75 = Math.round(255 * 0.75);
+
+    const sendMotor = useCallback(async (motorCmd: number, throttle: number) => {
+        try {
+            const { getBleClient } = await import("../../../src/comms/BLE");
+            const client = getBleClient();
+            await client.sendCommand(buildRawCommandBytes(motorCmd, [throttle]));
+        } catch (e) {
+            console.log("BLE send failed:", e);
         }
     }, []);
+
+    const pulseMotors = useCallback(async (motors: number[]) => {
+        for (const m of motors) {
+            await sendMotor(m, THROTTLE_75);
+        }
+        setTimeout(async () => {
+            for (const m of motors) {
+                await sendMotor(m, THROTTLE_20);
+            }
+        }, 1000);
+    }, [sendMotor]);
+
+    const handleDPad = useCallback(async (dir: Direction) => {
+        try {
+            const { getBleClient } = await import("../../../src/comms/BLE");
+            const client = getBleClient();
+
+            switch (dir) {
+                case "CENTER":
+                    await client.sendCommand(buildRawCommandBytes(DroneCmd.ARM));
+                    break;
+                case "SW":
+                    await pulseMotors([DroneCmd.SET_MOTOR_1]);
+                    break;
+                case "NW":
+                    await pulseMotors([DroneCmd.SET_MOTOR_2]);
+                    break;
+                case "NE":
+                    await pulseMotors([DroneCmd.SET_MOTOR_3]);
+                    break;
+                case "SE":
+                    await pulseMotors([DroneCmd.SET_MOTOR_4]);
+                    break;
+                case "W":
+                    await pulseMotors([DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_2]);
+                    break;
+                case "N":
+                    await pulseMotors([DroneCmd.SET_MOTOR_2, DroneCmd.SET_MOTOR_3]);
+                    break;
+                case "E":
+                    await pulseMotors([DroneCmd.SET_MOTOR_3, DroneCmd.SET_MOTOR_4]);
+                    break;
+                case "S":
+                    await pulseMotors([DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_4]);
+                    break;
+            }
+        } catch (e) {
+            console.log("BLE send failed:", e);
+        }
+    }, [pulseMotors]);
 
     return (
         <View style={styles.root}>
@@ -142,7 +193,13 @@ export default function Control() {
                 <View style={styles.quickActions}>
                     <Text style={styles.label}>Quick Actions</Text>
                     <View style={styles.actionRow}>
-                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "TAKEOFF" })}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={async () => {
+                            await comms.send({ type: "ARM" });
+                            await sendMotor(DroneCmd.SET_MOTOR_1, THROTTLE_20);
+                            await sendMotor(DroneCmd.SET_MOTOR_2, THROTTLE_20);
+                            await sendMotor(DroneCmd.SET_MOTOR_3, THROTTLE_20);
+                            await sendMotor(DroneCmd.SET_MOTOR_4, THROTTLE_20);
+                        }}>
                             <Text style={styles.btnLabel}>Takeoff</Text>
                         </Pressable>
                         <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "LAND" })}>
