@@ -24,8 +24,6 @@ Group 3 Draft Design Document
 
 ### Introduction {#introduction}
 
-**Need & Goal Statements**
-
 **Need Statement**
 
 There is a need to simplify the process of piloting a drone by removing the requirement for continuous manual control.
