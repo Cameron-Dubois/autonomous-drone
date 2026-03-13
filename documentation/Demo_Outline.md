@@ -4,6 +4,18 @@
 - ~5 minutes for questions
 - ~1 minute buffer time
 
+## Need Statement
+
+There is a need to simplify the process of piloting a drone by removing the requirement for continuous manual control.
+
+## Goal Statement
+
+The goal of this project is to design a pilotless autonomous drone that follows a user, enabling hands-free filming without continuous manual control.
+
+## Design Objective
+
+The objective of this project is to create a pilotless autonomous drone that is capable of following a user.
+
 ### Person 1 — Problem, goal, and what you are demonstrating
 
 - short intro: what the project is and why it matters (need and goal statement)
@@ -41,6 +53,8 @@
 - each motor was actuated correctly and the command mapping was verified.
 
 ### Person 6 — Live demo narration, testing evidence, and limitations/next steps
+
+-drone microcontroller powered by usb, motors powered by lipo batteries, motors recieve commands from microcontroller
 
 - Narrate the actual live sequence while it happens:
   - app scans
