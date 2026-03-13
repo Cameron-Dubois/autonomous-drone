@@ -1,40 +1,38 @@
 Group 3 Draft Design Document
 
-### Executive Summary {#executive-summary}
+<a id="executive-summary"></a>
+### Executive Summary
 
-### Table of Contents {#table-of-contents}
+<a id="table-of-contents"></a>
+### Table of Contents
 
-[Executive Summary](#executive-summary)
+- [Executive Summary](#executive-summary)
+- [Table of Contents](#table-of-contents)
+- [Introduction](#introduction)
+- [Design](#design)
+- [Evaluation](#evaluation)
+- [Appendix 1 – Problem Formulation](#appendix-1-problem-formulation)
+- [Appendix 2 – Planning](#appendix-2-planning)
+- [Appendix 3 – Test Plan & Results](#appendix-3-test-plan-results)
+- [Appendix 4 – Review](#appendix-4-review)
 
-[Table of Contents](#table-of-contents)
+<a id="introduction"></a>
+### Introduction
 
-[Introduction](#introduction)
-
-[Design](#design)
-
-[Evaluation](#evaluation)
-
-[Appendix 1 – Problem Formulation](#appendix-1---problem-formulation)
-
-[Appendix 2 – Planning](#appendix-2---planning)
-
-[Appendix 3 – Test Plan & Results](#appendix-3---test-plan-&-results)
-
-[Appendix 4 – Review](#appendix-4---review)
-
-### Introduction {#introduction}
+**Need & Goal Statements**
 
 **Need Statement**
 
-There is a need to simplify the process of piloting a drone by removing the requirement for continuous manual control.
-
-**Design Objective**
-
-The objective of this project is to create a pilotless autonomous drone that is capable of following a user.
+Many independent content creators need dynamic video footage but do not have access to a second person to operate a camera or drone. For example, a travel vlogger walking through a city or a fitness instructor recording an outdoor workout often needs moving shots or aerial perspectives to make their videos more engaging. Current recording setups such as tripods provide only fixed camera angles, while most drones require a dedicated controller and experienced operator. As a result, individuals working alone struggle to capture professional-looking footage. There is a need for a drone system that can be easily controlled by a smartphone, allowing a single user to move the drone and record video simultaneously without requiring additional personnel.
 
 **Goal Statement**
 
-The goal of this project is to design a pilotless autonomous drone that follows a user, enabling hands-free filming without continuous manual control.
+The goal of this project is to design a drone that can be controlled directly from a smartphone using a simple directional interface. When a user presses a direction on the phone, the drone will move in the corresponding direction while capturing video.
+Key goals include:
+Enabling smartphone-based directional control of the drone.
+Allowing users to record video while controlling the drone.
+Creating an intuitive control interface that requires minimal training.
+Providing a system that allows individual content creators to record themselves without a second operator.
 
 **Personas**
 
@@ -89,7 +87,8 @@ The drone will operate using rechargeable batteries, allowing repeated use witho
 
 Through these design considerations, the system aims to provide a functional product while reducing environmental impact and encouraging long-term usability.
 
-### Design {#design}
+<a id="design"></a>
+### Design
 
 **Aesthetic Prototype**
 ![Drone cad](images/cad.png)
@@ -122,7 +121,8 @@ At this stage of development, the focus has been on validating communication and
 
 Future development may incorporate simulation tools to model flight dynamics and control algorithms before implementing them on the physical drone. Simulations could allow the team to test autonomous behaviors, sensor integration, and control stability in a controlled virtual environment before deploying those features on the hardware platform. This approach would reduce development risk and improve system reliability as more advanced functionality is added.
 
-### Evaluation {#evaluation}
+<a id="evaluation"></a>
+### Evaluation
 
 Our current prototype demonstrates that the core communication and motor control functions for the autonomous drone are functional. The mobile application successfully connects to the custom PCB controller via Bluetooth and enables the selective activation of individual propellers. These results, validated through structured testing, confirm that the basic design architecture is practical and provides a reliable foundation for future development.
 
@@ -173,7 +173,8 @@ Testing focused on verifying end-to-end functionality from mobile app input to p
 
 All executed tests met success criteria, confirming reliable Bluetooth communication between the mobile application and custom PCB controller, and accurate motor actuation from app commands. These results validate the prototype's core functionality and establish a tested foundation for autonomous flight development.
 
-## Appendix 1 – Problem Formulation {#appendix-1---problem-formulation}
+<a id="appendix-1-problem-formulation"></a>
+## Appendix 1 – Problem Formulation
 
 ### 1. Conceptualisations
 
@@ -288,7 +289,8 @@ We have not finalised a tracking approach yet. Brainstorming focused on two main
 
 To be added soon
 
-### Appendix 2 – Planning {#appendix-2---planning}
+<a id="appendix-2-planning"></a>
+### Appendix 2 – Planning
 
 #### Basic Plan / Gantt Chart
 
@@ -317,7 +319,8 @@ We used the following tools and processes to coordinate work:
 - **GitHub** – The repository was used for all code, documentation, and design files.
 - **Discord** – Discord served as the main channel for day-to-day messaging, quick questions, meeting coordination, and sharing updates between synchronous meetings.
 
-### Appendix 3 – Manufacturing Test Plan & Results {#appendix-3---test-plan-&-results}
+<a id="appendix-3-test-plan-results"></a>
+### Appendix 3 – Manufacturing Test Plan & Results
 
 This section defines a generic manufacturing and verification test plan for future engineers who build or maintain production versions of the autonomous drone.
 
@@ -585,10 +588,11 @@ This section defines a generic manufacturing and verification test plan for futu
 - When the link is lost or degraded, the drone follows the documented failsafe policy (e.g., hover then land, or return-to-home then land) and does not exhibit uncontrolled motion or fly-away behavior.
 
 ---
-### Appendix 4 – Review {#appendix-4---review}
+<a id="appendix-4-review"></a>
+### Appendix 4 – Review
 
 **One paragraph from each team member**
 
 **Ethan Liu**
 
-Our integration went well largely because we kept everything in a monorepo—mobile app, firmware, and documentation all in one place. That made it easier to coordinate changes, run tests across subsystems, and keep the design document aligned with the actual codebase. If I were to do it again, I would devote more time to the drone hardware side. Our effort was fairly evenly split between hardware and firmware, but in retrospect I would skew toward hardware earlier—soldering, mechanical assembly, and hands-on debugging of the physical drone—to unblock firmware and flight testing sooner.
+Our integration went well largely because we kept everything in a monorepo — mobile app, firmware, and documentation all in one place. That made it easier to coordinate changes, run tests across subsystems, and keep the design document aligned with the actual codebase. If I were to do it again, I would devote more time to the drone hardware side. Our effort was fairly evenly split between hardware and firmware, but in retrospect I would skew toward hardware earlier:soldering, mechanical assembly, and hands-on debugging of the physical drone to unblock firmware and flight testing sooner.
