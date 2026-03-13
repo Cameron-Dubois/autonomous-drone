@@ -591,3 +591,7 @@ This section defines a generic manufacturing and verification test plan for futu
 ### Appendix 4 – Review {#appendix-4---review}
 
 **One paragraph from each team member**
+
+**Ethan Liu**
+
+Our integration went well largely because we kept everything in a monorepo—mobile app, firmware, and documentation all in one place. That made it easier to coordinate changes, run tests across subsystems, and keep the design document aligned with the actual codebase. If I were to do it again, I would devote more time to the drone hardware side. Our effort was fairly evenly split between hardware and firmware, but in retrospect I would skew toward hardware earlier—soldering, mechanical assembly, and hands-on debugging of the physical drone—to unblock firmware and flight testing sooner.
