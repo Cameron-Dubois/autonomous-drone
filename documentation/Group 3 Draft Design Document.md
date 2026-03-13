@@ -1,9 +1,11 @@
 Group 3 Draft Design Document
 
 <a id="executive-summary"></a>
+
 ### Executive Summary
 
 <a id="table-of-contents"></a>
+
 ### Table of Contents
 
 - [Executive Summary](#executive-summary)
@@ -17,6 +19,7 @@ Group 3 Draft Design Document
 - [Appendix 4 – Review](#appendix-4-review)
 
 <a id="introduction"></a>
+
 ### Introduction
 
 **Need & Goal Statements**
@@ -88,6 +91,7 @@ The drone will operate using rechargeable batteries, allowing repeated use witho
 Through these design considerations, the system aims to provide a functional product while reducing environmental impact and encouraging long-term usability.
 
 <a id="design"></a>
+
 ### Design
 
 **Aesthetic Prototype**
@@ -122,6 +126,7 @@ At this stage of development, the focus has been on validating communication and
 Future development may incorporate simulation tools to model flight dynamics and control algorithms before implementing them on the physical drone. Simulations could allow the team to test autonomous behaviors, sensor integration, and control stability in a controlled virtual environment before deploying those features on the hardware platform. This approach would reduce development risk and improve system reliability as more advanced functionality is added.
 
 <a id="evaluation"></a>
+
 ### Evaluation
 
 Our current prototype demonstrates that the core communication and motor control functions for the autonomous drone are functional. The mobile application successfully connects to the custom PCB controller via Bluetooth and enables the selective activation of individual propellers. These results, validated through structured testing, confirm that the basic design architecture is practical and provides a reliable foundation for future development.
@@ -174,6 +179,7 @@ Testing focused on verifying end-to-end functionality from mobile app input to p
 All executed tests met success criteria, confirming reliable Bluetooth communication between the mobile application and custom PCB controller, and accurate motor actuation from app commands. These results validate the prototype's core functionality and establish a tested foundation for autonomous flight development.
 
 <a id="appendix-1-problem-formulation"></a>
+
 ## Appendix 1 – Problem Formulation
 
 ### 1. Conceptualisations
@@ -290,6 +296,7 @@ We have not finalised a tracking approach yet. Brainstorming focused on two main
 To be added soon
 
 <a id="appendix-2-planning"></a>
+
 ### Appendix 2 – Planning
 
 #### Basic Plan / Gantt Chart
@@ -300,14 +307,14 @@ To be added soon
 
 The table below summarizes each team member's primary areas of contribution during the prototyping phase. Work was tracked and assigned through Jira across five sprints.
 
-| Team Member | Primary Contributions |
-| --- | --- |
-| **Ethan Liu** | Worked on mobile app development, including fixing BLE implementation bugs, restructuring the project for expo-router, implementing manual controls, and setting up WiFi permissions and testing. Set up the Jira Kanban board and led the weekly scrums. |
-| **Cameron Dubois** | Designed the initial Figma mockups for the mobile app and set up the mobile project environment. Implemented Bluetooth connectivity on the mobile side and fixed display issues. |
-| **Darin Rahm** | Focused on drone firmware, including testing ESP32 Bluetooth and WiFi connectivity and implementing BLE commands for motor control. Also authored the test plan and created demonstration tests. |
-| **Stephen Wend-Bell** | Worked across firmware and hardware — wrote the motor on/off and speed control functions, and integrated the ESP32 with new hardware components and the camera module. Set up the GitHub repository, created the initial LaTeX documents, and produced the digital system diagrams. |
-| **Winnie Wong** | Handled parts research and acquisition, documented component sizes for the final design, and researched campus drone flight guidelines. Designed a custom PCB schematic and created test cases. |
-| **Abhiram Sai Yegalapati** | Designed the updated CAD model for the drone shell and worked on wiring. Continously improving on drone CAD model and releasing new iterations with every change. |
+| Team Member                | Primary Contributions                                                                                                                                                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ethan Liu**              | Worked on mobile app development, including fixing BLE implementation bugs, restructuring the project for expo-router, implementing manual controls, and setting up WiFi permissions and testing. Set up the Jira Kanban board and led the weekly scrums.                           |
+| **Cameron Dubois**         | Designed the initial Figma mockups for the mobile app and set up the mobile project environment. Implemented Bluetooth connectivity on the mobile side and fixed display issues.                                                                                                    |
+| **Darin Rahm**             | Focused on drone firmware, including testing ESP32 Bluetooth and WiFi connectivity and implementing BLE commands for motor control. Also authored the test plan and created demonstration tests.                                                                                    |
+| **Stephen Wend-Bell**      | Worked across firmware and hardware — wrote the motor on/off and speed control functions, and integrated the ESP32 with new hardware components and the camera module. Set up the GitHub repository, created the initial LaTeX documents, and produced the digital system diagrams. |
+| **Winnie Wong**            | Handled parts research and acquisition, documented component sizes for the final design, and researched campus drone flight guidelines. Designed a custom PCB schematic and created test cases.                                                                                     |
+| **Abhiram Sai Yegalapati** | Designed the updated CAD model for the drone shell and worked on wiring. Continously improving on drone CAD model and releasing new iterations with every change.                                                                                                                   |
 
 ---
 
@@ -320,6 +327,7 @@ We used the following tools and processes to coordinate work:
 - **Discord** – Discord served as the main channel for day-to-day messaging, quick questions, meeting coordination, and sharing updates between synchronous meetings.
 
 <a id="appendix-3-test-plan-results"></a>
+
 ### Appendix 3 – Manufacturing Test Plan & Results
 
 This section defines a generic manufacturing and verification test plan for future engineers who build or maintain production versions of the autonomous drone.
@@ -588,7 +596,9 @@ This section defines a generic manufacturing and verification test plan for futu
 - When the link is lost or degraded, the drone follows the documented failsafe policy (e.g., hover then land, or return-to-home then land) and does not exhibit uncontrolled motion or fly-away behavior.
 
 ---
+
 <a id="appendix-4-review"></a>
+
 ### Appendix 4 – Review
 
 **One paragraph from each team member**
@@ -596,3 +606,7 @@ This section defines a generic manufacturing and verification test plan for futu
 **Ethan Liu**
 
 Our integration went well largely because we kept everything in a monorepo — mobile app, firmware, and documentation all in one place. That made it easier to coordinate changes, run tests across subsystems, and keep the design document aligned with the actual codebase. If I were to do it again, I would devote more time to the drone hardware side. Our effort was fairly evenly split between hardware and firmware, but in retrospect I would skew toward hardware earlier:soldering, mechanical assembly, and hands-on debugging of the physical drone to unblock firmware and flight testing sooner.
+
+**Stephen Wend-Bell**
+
+In this quarter we made a lot of good progress on our prototype and design. We went from nothing to having a working mobile app, working bluetooth connection to the drone, and all four motors spinning in response to the mobile app. One that that hindered my progress at least was my understanding of what was required of us in the class, I originally thought we were just building our design. It wasn't until like week 5 that I realized we're just building a prototype, and the main focus of the class is just the design. After we understood this, our work became more focused and we made more progress.
