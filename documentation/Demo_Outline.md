@@ -54,7 +54,7 @@ The objective of this project is to create a pilotless autonomous drone that is 
 
 ### Person 6 — Live demo narration, testing evidence, and limitations/next steps
 
--State the drone microcontroller is only plugged in for power
+-drone microcontroller powered by usb, motors powered by lipo batteries, motors recieve commands from microcontroller
 
 - Narrate the actual live sequence while it happens:
   - app scans
