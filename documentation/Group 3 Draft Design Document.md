@@ -113,7 +113,7 @@ Maintenance was also considered during the design process. Key components such a
 ![alt text](images/state_transition_diagram.png)
 **Technology**
 
-The prototype system is built using an ESP32 microcontroller as the central computing platform. The ESP32 was selected because it integrates wireless communication capabilities, sufficient processing performance, and flexible GPIO interfaces for controlling external hardware. Its built-in Bluetooth functionality enables direct communication with the mobile application without requiring additional wireless modules.
+The prototype system is built using a custom PCB as the central computing platform. The custom PCB was selected because it integrates wireless communication capabilities, sufficient processing performance, and flexible GPIO interfaces for controlling external hardware. Its built-in Bluetooth functionality enables direct communication with the mobile application without requiring additional wireless modules.
 
 The propulsion system consists of four motors with propellers arranged in a quadcopter configuration. Each motor can be controlled independently, allowing the system to generate lift and directional movement through differential thrust. The drone is powered by a rechargeable lithium-polymer battery that provides a lightweight energy source suitable for aerial applications.
 
@@ -127,13 +127,13 @@ Future development may incorporate simulation tools to model flight dynamics and
 
 ### Evaluation {#evaluation}
 
-Our current prototype demonstrates that the core communication and motor control functions for the autonomous drone are functional. The mobile application successfully connects to the ESP32 controller via Bluetooth and enables the selective activation of individual propellers. These results, validated through structured testing, confirm that the basic design architecture is practical and provides a reliable foundation for future development.
+Our current prototype demonstrates that the core communication and motor control functions for the autonomous drone are functional. The mobile application successfully connects to the custom PCB controller via Bluetooth and enables the selective activation of individual propellers. These results, validated through structured testing, confirm that the basic design architecture is practical and provides a reliable foundation for future development.
 
 **Functional Prototype**
 
-The functional prototype consists of an ESP32-based flight controller mounted on a quadcopter 3D-printed frame with four brushless motors and propellers powered by a LiPo battery system. The ESP32 serves as the central microcontroller, providing integrated Bluetooth connectivity and sufficient processing capability for current control functions and future autonomy features. Each motor is connected directly to a dedicated PWM-capable GPIO pin on the ESP32, with shared ground connections and separate power rails for logic and motor operation.
+The functional prototype consists of a custom PCB-based flight controller mounted on a quadcopter 3D-printed frame with four brushless motors and propellers powered by a LiPo battery system. The custom PCB serves as the central microcontroller, providing integrated Bluetooth connectivity and sufficient processing capability for current control functions and future autonomy features. Each motor is connected directly to a dedicated PWM-capable GPIO pin on the custom PCB, with shared ground connections and separate power rails for logic and motor operation.
 
-The ESP32 firmware initializes Bluetooth advertising and accepts connections from mobile devices, as verified in our firmware test plan. The mobile application scans for the ESP32, establishes a Bluetooth connection, and provides controls for individual motors. Our testing successfully demonstrated stable Bluetooth connectivity, including device discovery and reliable reconnection across multiple connect/disconnect cycles.
+The custom PCB firmware initializes Bluetooth advertising and accepts connections from mobile devices, as verified in our firmware test plan. The mobile application scans for the custom PCB, establishes a Bluetooth connection, and provides controls for individual motors. Our testing successfully demonstrated stable Bluetooth connectivity, including device discovery and reliable reconnection across multiple connect/disconnect cycles.
 
 Photographs of the prototype:
 
@@ -166,7 +166,7 @@ Photographs of the prototype:
 Testing focused on verifying end-to-end functionality from mobile app input to physical motor response, following procedures outlined in our test plans.
 
 1. Bluetooth Connectivity Tests
-   Executed firmware connectivity tests BLE-01 and BLE-02, confirming the ESP32 advertises correctly and accepts connections within 10 seconds. Completed 5 connect/disconnect cycles with 100 % success rate and no firmware crashes. Mobile app tests BT-01 and BT-02 verified device discovery, connection status updates, and clean disconnection handling.
+   Executed firmware connectivity tests BLE-01 and BLE-02, confirming the custom PCB advertises correctly and accepts connections within 10 seconds. Completed 5 connect/disconnect cycles with 100 % success rate and no firmware crashes. Mobile app tests BT-01 and BT-02 verified device discovery, connection status updates, and clean disconnection handling.
 
 2. Motor Control Verification
    Established a Bluetooth connection and sequentially activated each motor via the app interface. Each selection correctly actuated the corresponding physical motor, confirming proper wiring and command mapping. Response time from app input to motor activation was imperceptible, demonstrating adequate communication latency.
@@ -174,7 +174,7 @@ Testing focused on verifying end-to-end functionality from mobile app input to p
 3. Test Plan Implementation
    Testing followed two documented plans: a comprehensive system-level plan covering mobile app and drone hardware integration, and a firmware-specific connectivity validation plan. This prototype phase prioritized Bluetooth connectivity and the validation of basic motor control. Subsequent phases will implement the remaining test cases, including flight control, telemetry display, and video streaming.
 
-All executed tests met success criteria, confirming reliable Bluetooth communication between the mobile application and ESP32 controller, and accurate motor actuation from app commands. These results validate the prototype's core functionality and establish a tested foundation for autonomous flight development.
+All executed tests met success criteria, confirming reliable Bluetooth communication between the mobile application and custom PCB controller, and accurate motor actuation from app commands. These results validate the prototype's core functionality and establish a tested foundation for autonomous flight development.
 
 ## Appendix 1 – Problem Formulation {#appendix-1---problem-formulation}
 
@@ -232,7 +232,7 @@ Brainstorming centred on a few key concepts: the drone should not require piloti
 **4. What sensors and parts do we actually need?**
 
 - At first the need for many extra parts was not obvious.
-- An IMU was assumed necessary and expected to be available on the ESP32-based board.
+- An IMU was assumed necessary and expected to be available on the custom PCB.
 - Brainstorming raised the need for a barometer, magnetometer, and possibly a GPS unit.
 - Sensors became a major open question: what is strictly necessary for a first version vs what is needed for reliable autonomous behaviour and safety.
 
@@ -303,12 +303,12 @@ The table below summarizes each team member's primary areas of contribution duri
 
 | Team Member | Primary Contributions |
 | --- | --- |
-| **Ethan Liu** | Worked on mobile app development, including fixing BLE implementation bugs, restructuring the project for expo-router, fixing layout bugs and memory leaks, and setting up WiFi permissions and testing. Also contributed to hardware by 3D-printing the first drone frame. On the documentation side, drafted the systems architecture, set up Jira, created the project wiki, converted the design document to markdown, and researched cloud deployment options. |
+| **Ethan Liu** | Worked on mobile app development, including fixing BLE implementation bugs, restructuring the project for expo-router, implementing manual controls, and setting up WiFi permissions and testing. Set up the Jira Kanban board and led the weekly scrums. |
 | **Cameron Dubois** | Designed the initial Figma mockups for the mobile app and set up the mobile project environment. Implemented Bluetooth connectivity on the mobile side and fixed display issues. |
 | **Darin Rahm** | Focused on drone firmware, including testing ESP32 Bluetooth and WiFi connectivity and implementing BLE commands for motor control. Also authored the test plan and created demonstration tests. |
-| **Stephen WB** | Worked across firmware and hardware — wrote the motor on/off and speed control functions, and integrated the ESP32 with new hardware components and the camera module. Set up the GitHub repository, created the initial LaTeX documents, and produced the digital system diagrams. |
+| **Stephen Wend-Bell** | Worked across firmware and hardware — wrote the motor on/off and speed control functions, and integrated the ESP32 with new hardware components and the camera module. Set up the GitHub repository, created the initial LaTeX documents, and produced the digital system diagrams. |
 | **Winnie Wong** | Handled parts research and acquisition, documented component sizes for the final design, and researched campus drone flight guidelines. Designed a custom PCB schematic and created test cases. |
-| **Aya Galap** | Designed the updated CAD model for the drone shell and integrated mobile controls with the ESP32 hardware. Continously improving on drone CAD model and releasing new iterations with every change. |
+| **Abhiram Sai Yegalapati** | Designed the updated CAD model for the drone shell and worked on wiring. Continously improving on drone CAD model and releasing new iterations with every change. |
 
 ---
 
