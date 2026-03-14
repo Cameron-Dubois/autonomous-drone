@@ -291,10 +291,6 @@ We have not finalised a tracking approach yet. Brainstorming focused on two main
 
 ---
 
-### 3. Morphological Charts
-
-To be added soon
-
 <a id="appendix-2-planning"></a>
 
 ### Appendix 2 – Planning
@@ -610,3 +606,7 @@ Our integration went well largely because we kept everything in a monorepo — m
 **Stephen Wend-Bell**
 
 In this quarter we made a lot of good progress on our prototype and design. We went from nothing to having a working mobile app, working bluetooth connection to the drone, and all four motors spinning in response to the mobile app. One that that hindered my progress at least was my understanding of what was required of us in the class, I originally thought we were just building our design. It wasn't until like week 5 that I realized we're just building a prototype, and the main focus of the class is just the design. After we understood this, our work became more focused and we made more progress.
+
+**Cameron Dubois**
+
+The group as a whole has made significant progress in the first quarter. Most of my time was spent on the mobile application, and while we now have successful BLE communication established, I think we may have allocated too many resources to the app as opposed to the actual drone. With that foundation in place, I expect the second quarter to bring a greater focus on the hardware's flying and autonomous capabilities as they are the core focus of our design goals. I also don’t think I am alone in that it took some time to adjust to the course workflow and understand that the emphasis is on the design and documentation, which made for a slow start. Going into the next quarter, I want to shift my attention toward integrating the app with the drone's flight systems and contributing more on the hardware side.
