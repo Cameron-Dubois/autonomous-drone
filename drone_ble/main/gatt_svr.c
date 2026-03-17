@@ -166,11 +166,11 @@ drone_ack_build(const drone_cmd_t *cmd, uint8_t status, uint32_t now_ms,
     out->drone_ms = now_ms;
 }
 
-/* Map 0-255 throttle to 0-8191 LEDC duty and drive the real motor. */
+/* Map 0-255 throttle to 0-1023 LEDC duty (10-bit) and drive the real motor. */
 static void
 drone_apply_motor(motor_t motor_id, uint8_t throttle)
 {
-    int duty = (throttle * 8191) / 255;
+    int duty = (throttle * 1023) / 255;
     motor_set_on_off(motor_id, duty > 0);
     motor_set_speed(motor_id, duty);
 }
@@ -226,7 +226,7 @@ drone_handle_command(const drone_cmd_t *cmd)
             drone_apply_motor(mid, throttle);
             MODLOG_DFLT(INFO,
                         "DRONE_CMD_SET_MOTOR %d seq=%u throttle=%u duty=%d\n",
-                        mid + 1, cmd->seq, throttle, (throttle * 8191) / 255);
+                        mid + 1, cmd->seq, throttle, (throttle * 1023) / 255);
         }
         return 0;
 
