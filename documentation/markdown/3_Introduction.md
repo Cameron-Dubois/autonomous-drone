@@ -8,7 +8,7 @@ There is a need to simplify the process of piloting a drone by removing the requ
 
 **Goal Statement**
 
-The goal of this project is to design an autonomous drone that follows a user, enabling hands-free filming without continuous manual control.
+The goal of this project is to design an autonomous drone that follows a user without requiring continuous manual control.
 
 **Design Objective**
 
