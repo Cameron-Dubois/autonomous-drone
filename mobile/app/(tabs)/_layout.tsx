@@ -17,7 +17,8 @@ const ANDROID_NAV_FALLBACK = 48;
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     const insets = useSafeAreaInsets();
-    const isAndroid = Platform.OS === "android" || Platform.OS === "linux";
+    const isAndroid =
+        Platform.OS === "android" || (Platform.OS as string) === "linux";
     const bottomSafe = isAndroid && insets.bottom < 10 ? ANDROID_NAV_FALLBACK : insets.bottom;
 
     return (
