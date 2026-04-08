@@ -30,3 +30,63 @@ menu "ICM-42670-P IMU Configuration"
             I2C address becomes 0x69 instead of the default 0x68.
 
 endmenu
+
+menu "Motor Configuration"
+
+    config MOTOR_1_PWM_GPIO
+        int "Motor 1 PWM GPIO"
+        default 0
+        range 0 21
+        help
+            PWM output pin for motor 1.
+
+    config MOTOR_1_DIR_GPIO
+        int "Motor 1 direction GPIO"
+        default 1
+        range 0 21
+        help
+            Direction control pin for motor 1.
+
+    config MOTOR_2_PWM_GPIO
+        int "Motor 2 PWM GPIO"
+        default 3
+        range 0 21
+        help
+            PWM output pin for motor 2.
+
+    config MOTOR_2_DIR_GPIO
+        int "Motor 2 direction GPIO"
+        default 4
+        range 0 21
+        help
+            Direction control pin for motor 2.
+
+    config MOTOR_3_PWM_GPIO
+        int "Motor 3 PWM GPIO"
+        default 5
+        range 0 21
+        help
+            PWM output pin for motor 3.
+
+    config MOTOR_3_DIR_GPIO
+        int "Motor 3 direction GPIO"
+        default 6
+        range 0 21
+        help
+            Direction control pin for motor 3.
+
+    config MOTOR_4_PWM_GPIO
+        int "Motor 4 PWM GPIO"
+        default 7
+        range 0 21
+        help
+            PWM output pin for motor 4.
+
+    config MOTOR_4_DIR_GPIO
+        int "Motor 4 direction GPIO"
+        default 9
+        range 0 21
+        help
+            Direction control pin for motor 4.
+
+endmenu
