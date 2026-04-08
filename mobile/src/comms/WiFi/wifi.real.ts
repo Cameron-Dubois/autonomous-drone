@@ -8,11 +8,12 @@ import type {
 // Lazy import to avoid loading in Expo Go when native module isn't available
 let WifiManager: typeof import("react-native-wifi-reborn").default | null = null;
 
-function getWifiManager() {
+function getWifiManager(): NonNullable<typeof WifiManager> {
   if (WifiManager) return WifiManager;
   try {
-    WifiManager = require("react-native-wifi-reborn").default;
-    return WifiManager;
+    const mod = require("react-native-wifi-reborn").default;
+    WifiManager = mod;
+    return mod;
   } catch {
     throw new Error(
       "WiFi requires a development build. Run 'npx expo run:android' or 'npx expo run:ios'."
