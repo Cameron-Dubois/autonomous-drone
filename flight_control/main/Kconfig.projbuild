@@ -1,0 +1,32 @@
+menu "ICM-42670-P IMU Configuration"
+
+    config IMU_I2C_SDA_GPIO
+        int "I2C SDA GPIO number"
+        default 4
+        range 0 21
+        help
+            GPIO pin for I2C SDA line connected to the ICM-42670-P.
+
+    config IMU_I2C_SCL_GPIO
+        int "I2C SCL GPIO number"
+        default 5
+        range 0 21
+        help
+            GPIO pin for I2C SCL line connected to the ICM-42670-P.
+
+    config IMU_I2C_FREQ_HZ
+        int "I2C clock frequency (Hz)"
+        default 400000
+        range 100000 1000000
+        help
+            I2C master clock frequency. The ICM-42670-P supports up to 1 MHz.
+            400 kHz (Fast Mode) is a safe default.
+
+    config IMU_AD0_HIGH
+        bool "AD0 pin is pulled HIGH (I2C address 0x69)"
+        default n
+        help
+            When the ICM-42670-P AP_AD0 pin is tied HIGH the 7-bit
+            I2C address becomes 0x69 instead of the default 0x68.
+
+endmenu

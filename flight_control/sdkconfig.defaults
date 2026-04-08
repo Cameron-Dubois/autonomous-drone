@@ -1,0 +1,11 @@
+#targeting the ESP32-C3
+CONFIG_IDF_TARGET="esp32c3"
+
+#I2C pins for the ESP32-C3-DevKit-RUST-1 board
+#the ICM-42670-P is hardwired to GPIO10 (SDA) and GPIO8 (SCL) on this board
+CONFIG_IMU_I2C_SDA_GPIO=10
+CONFIG_IMU_I2C_SCL_GPIO=8
+CONFIG_IMU_I2C_FREQ_HZ=400000
+
+#bigger stack so we don't overflow with all the printf calls
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
