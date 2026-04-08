@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions } from "react-native";
 import { useComms } from "../../../src/context/CommsContext";
 import { spacing, fontSizes, radii, getPanelDimensions } from "../../../src/theme/layout";
@@ -8,7 +8,7 @@ type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW" | "CENTER";
 
 const ARROW: Record<Direction, string> = {
     NW: "\u2196", N: "\u2191", NE: "\u2197",
-    W: "\u2190",  CENTER: "\u25CF", E: "\u2192",
+    W: "\u2190",  CENTER: "Arm", E: "\u2192",
     SW: "\u2199", S: "\u2193", SE: "\u2198",
 };
 
@@ -18,17 +18,32 @@ const DPAD_GRID: Direction[][] = [
     ["SW", "S", "SE"],
 ];
 
-function DPad({ onPress }: { onPress: (dir: Direction) => void }) {
+/** Maps each D-pad direction (except CENTER) to the motor command(s) it controls */
+const DIR_TO_MOTORS: Record<Exclude<Direction, "CENTER">, number[]> = {
+    SW: [DroneCmd.SET_MOTOR_1],
+    NW: [DroneCmd.SET_MOTOR_2],
+    NE: [DroneCmd.SET_MOTOR_3],
+    SE: [DroneCmd.SET_MOTOR_4],
+    W: [DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_2],
+    N: [DroneCmd.SET_MOTOR_2, DroneCmd.SET_MOTOR_3],
+    E: [DroneCmd.SET_MOTOR_3, DroneCmd.SET_MOTOR_4],
+    S: [DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_4],
+};
+
+/** Maps DroneCmd.SET_MOTOR_X to motor index 0-3 */
+const MOTOR_CMD_TO_INDEX: Record<number, number> = {
+    [DroneCmd.SET_MOTOR_1]: 0,
+    [DroneCmd.SET_MOTOR_2]: 1,
+    [DroneCmd.SET_MOTOR_3]: 2,
+    [DroneCmd.SET_MOTOR_4]: 3,
+};
+
+function DPad({
+    onPress,
+}: {
+    onPress: (dir: Direction) => void;
+}) {
     const [active, setActive] = useState<Direction | null>(null);
-
-    const handlePressIn = useCallback((dir: Direction) => {
-        setActive(dir);
-        onPress(dir);
-    }, [onPress]);
-
-    const handlePressOut = useCallback(() => {
-        setActive(null);
-    }, []);
 
     return (
         <View style={dpadStyles.container}>
@@ -40,8 +55,9 @@ function DPad({ onPress }: { onPress: (dir: Direction) => void }) {
                         return (
                             <Pressable
                                 key={dir}
-                                onPressIn={() => handlePressIn(dir)}
-                                onPressOut={handlePressOut}
+                                onPressIn={() => setActive(dir)}
+                                onPressOut={() => setActive(null)}
+                                onPress={() => onPress(dir)}
                                 style={[
                                     dpadStyles.btn,
                                     isCenter && dpadStyles.centerBtn,
@@ -109,9 +125,22 @@ export default function Control() {
     const comms = useComms();
     const { width: screenWidth } = useWindowDimensions();
     const { contentPadding } = getPanelDimensions(screenWidth, 0);
+    const [takeoffActive, setTakeoffActive] = useState(false);
+    const [motorPercents, setMotorPercents] = useState([0, 0, 0, 0]);
+    const takeoffIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const THROTTLE_20 = Math.round(255 * 0.2);
-    const THROTTLE_75 = Math.round(255 * 0.75);
+    useEffect(() => {
+        return () => {
+            if (takeoffIntervalRef.current) {
+                clearInterval(takeoffIntervalRef.current);
+            }
+        };
+    }, []);
+
+    const THROTTLE_0 = 0;
+    const THROTTLE_10 = Math.round(255 * 0.1);
+
+    const percentToThrottle = (p: number) => Math.round(255 * Math.min(100, Math.max(0, p)) / 100);
 
     const sendMotor = useCallback(async (motorCmd: number, throttle: number) => {
         try {
@@ -123,55 +152,85 @@ export default function Control() {
         }
     }, []);
 
-    const pulseMotors = useCallback(async (motors: number[]) => {
-        for (const m of motors) {
-            await sendMotor(m, THROTTLE_75);
+    const sendMotors = useCallback(async (motorCmds: number[], throttle: number) => {
+        for (const m of motorCmds) {
+            await sendMotor(m, throttle);
         }
-        setTimeout(async () => {
-            for (const m of motors) {
-                await sendMotor(m, THROTTLE_20);
-            }
-        }, 1000);
     }, [sendMotor]);
 
-    const handleDPad = useCallback(async (dir: Direction) => {
+    const handleDPadPress = useCallback(async (dir: Direction) => {
         try {
-            const { getBleClient } = await import("../../../src/comms/BLE");
-            const client = getBleClient();
-
-            switch (dir) {
-                case "CENTER":
-                    await client.sendCommand(buildRawCommandBytes(DroneCmd.ARM));
-                    break;
-                case "SW":
-                    await pulseMotors([DroneCmd.SET_MOTOR_1]);
-                    break;
-                case "NW":
-                    await pulseMotors([DroneCmd.SET_MOTOR_2]);
-                    break;
-                case "NE":
-                    await pulseMotors([DroneCmd.SET_MOTOR_3]);
-                    break;
-                case "SE":
-                    await pulseMotors([DroneCmd.SET_MOTOR_4]);
-                    break;
-                case "W":
-                    await pulseMotors([DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_2]);
-                    break;
-                case "N":
-                    await pulseMotors([DroneCmd.SET_MOTOR_2, DroneCmd.SET_MOTOR_3]);
-                    break;
-                case "E":
-                    await pulseMotors([DroneCmd.SET_MOTOR_3, DroneCmd.SET_MOTOR_4]);
-                    break;
-                case "S":
-                    await pulseMotors([DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_4]);
-                    break;
+            if (dir === "CENTER") {
+                const { getBleClient } = await import("../../../src/comms/BLE");
+                const client = getBleClient();
+                await client.sendCommand(buildRawCommandBytes(DroneCmd.ARM));
+                return;
+            }
+            const motors = DIR_TO_MOTORS[dir];
+            const next = [...motorPercents];
+            for (const cmd of motors) {
+                const idx = MOTOR_CMD_TO_INDEX[cmd];
+                next[idx] = Math.min(motorPercents[idx] + 5, 100);
+            }
+            setMotorPercents(next);
+            for (const cmd of motors) {
+                const idx = MOTOR_CMD_TO_INDEX[cmd];
+                await sendMotor(cmd, percentToThrottle(next[idx]));
             }
         } catch (e) {
             console.log("BLE send failed:", e);
         }
-    }, [pulseMotors]);
+    }, [motorPercents, sendMotor]);
+
+    const handleTakeoff = useCallback(async () => {
+        // Clear any existing takeoff ramp
+        if (takeoffIntervalRef.current) {
+            clearInterval(takeoffIntervalRef.current);
+            takeoffIntervalRef.current = null;
+        }
+
+        await comms.send({ type: "ARM" });
+        setTakeoffActive(true);
+
+        const allMotors = [
+            DroneCmd.SET_MOTOR_1,
+            DroneCmd.SET_MOTOR_2,
+            DroneCmd.SET_MOTOR_3,
+            DroneCmd.SET_MOTOR_4,
+        ];
+
+        // Start at 10%
+        setMotorPercents([10, 10, 10, 10]);
+        let currentPercent = 10;
+        await sendMotors(allMotors, percentToThrottle(currentPercent));
+
+        // Every 1 second, increase by 5% until 100%
+        takeoffIntervalRef.current = setInterval(async () => {
+            currentPercent = Math.min(currentPercent + 5, 100);
+            setMotorPercents([currentPercent, currentPercent, currentPercent, currentPercent]);
+            await sendMotors(allMotors, percentToThrottle(currentPercent));
+            if (currentPercent >= 100) {
+                if (takeoffIntervalRef.current) {
+                    clearInterval(takeoffIntervalRef.current);
+                    takeoffIntervalRef.current = null;
+                }
+            }
+        }, 1000);
+    }, [comms, sendMotors]);
+
+    const handleLand = useCallback(async () => {
+        if (takeoffIntervalRef.current) {
+            clearInterval(takeoffIntervalRef.current);
+            takeoffIntervalRef.current = null;
+        }
+        await comms.send({ type: "LAND" });
+        setTakeoffActive(false);
+        setMotorPercents([0, 0, 0, 0]);
+        await sendMotors(
+            [DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_2, DroneCmd.SET_MOTOR_3, DroneCmd.SET_MOTOR_4],
+            THROTTLE_0,
+        );
+    }, [comms, sendMotors]);
 
     return (
         <View style={styles.root}>
@@ -187,31 +246,40 @@ export default function Control() {
 
                 <View style={styles.controlArea}>
                     <Text style={styles.label}>D-PAD</Text>
-                    <DPad onPress={handleDPad} />
+                    <DPad onPress={handleDPadPress} />
+                </View>
+
+                <View style={styles.debugPanel}>
+                    {[0, 1, 2, 3].map((i) => (
+                        <View key={i} style={styles.debugCell}>
+                            <Text style={styles.debugLabel}>M{i + 1}</Text>
+                            <Text style={styles.debugValue}>{motorPercents[i]}%</Text>
+                        </View>
+                    ))}
                 </View>
 
                 <View style={styles.quickActions}>
                     <Text style={styles.label}>Quick Actions</Text>
                     <View style={styles.actionRow}>
-                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={async () => {
-                            await comms.send({ type: "ARM" });
-                            await sendMotor(DroneCmd.SET_MOTOR_1, THROTTLE_20);
-                            await sendMotor(DroneCmd.SET_MOTOR_2, THROTTLE_20);
-                            await sendMotor(DroneCmd.SET_MOTOR_3, THROTTLE_20);
-                            await sendMotor(DroneCmd.SET_MOTOR_4, THROTTLE_20);
-                        }}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={handleTakeoff}>
                             <Text style={styles.btnLabel}>Takeoff</Text>
                         </Pressable>
-                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "LAND" })}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={handleLand}>
                             <Text style={styles.btnLabel}>Land</Text>
                         </Pressable>
                     </View>
                     <View style={styles.actionRow}>
-                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "HOVER" })}>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={async () => {
+                            setMotorPercents([10, 10, 10, 10]);
+                            await sendMotors(
+                                [DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_2, DroneCmd.SET_MOTOR_3, DroneCmd.SET_MOTOR_4],
+                                THROTTLE_10,
+                            );
+                        }}>
                             <Text style={styles.btnLabel}>Hover</Text>
                         </Pressable>
-                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={() => comms.send({ type: "RETURN_HOME" })}>
-                            <Text style={styles.btnLabel}>Return Home</Text>
+                        <Pressable style={[styles.btn, styles.btnSmall, styles.btnDisabled]} disabled>
+                            <Text style={[styles.btnLabel, styles.btnLabelDisabled]}>Return Home</Text>
                         </Pressable>
                     </View>
                 </View>
@@ -244,7 +312,33 @@ const styles = StyleSheet.create({
     },
     label: { fontSize: fontSizes.xs, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: spacing.lg },
     controlArea: {
+        marginBottom: spacing.lg,
+    },
+    debugPanel: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        gap: spacing.sm,
         marginBottom: spacing.xxxl,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+        backgroundColor: "rgba(0,0,0,0.3)",
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.06)",
+    },
+    debugCell: {
+        flex: 1,
+        alignItems: "center",
+    },
+    debugLabel: {
+        fontSize: 10,
+        letterSpacing: 1,
+        color: "rgba(255,255,255,0.4)",
+    },
+    debugValue: {
+        fontSize: fontSizes.sm,
+        fontWeight: "700",
+        color: "#00f2ff",
     },
     quickActions: {
         marginBottom: spacing.xxxl,
@@ -268,4 +362,6 @@ const styles = StyleSheet.create({
         height: 70,
     },
     btnLabel: { fontSize: fontSizes.sm, fontWeight: "800", letterSpacing: 2, color: "rgba(255,255,255,0.7)" },
+    btnDisabled: { opacity: 0.45 },
+    btnLabelDisabled: { color: "rgba(255,255,255,0.35)" },
 });
