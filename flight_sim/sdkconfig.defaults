@@ -1,0 +1,8 @@
+#targeting the ESP32-C3
+CONFIG_IDF_TARGET="esp32c3"
+
+#bigger stack for the control loop + UART handling
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
+
+#suppress most logging so binary UART packets don't get corrupted
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y

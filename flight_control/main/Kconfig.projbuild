@@ -84,9 +84,10 @@ menu "Motor Configuration"
 
     config MOTOR_4_DIR_GPIO
         int "Motor 4 direction GPIO"
-        default 9
+        default 20
         range 0 21
         help
             Direction control pin for motor 4.
+            GPIO9 is reserved for the BOOT/arm button.
 
 endmenu
