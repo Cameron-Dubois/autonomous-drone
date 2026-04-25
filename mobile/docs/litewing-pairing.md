@@ -27,6 +27,8 @@ This document is for the **Expo / React Native app** in this folder. It describe
 
 Espressif’s docs show **UDP** usage including **drone port 2390** and an application port **2399**, and an **example** drone IPv4 such as `192.168.43.42`.
 
+Default **host/ports/SSID prefix** for the app live in **`src/litewing/defaults.ts`**. You can override the host and ports at build time with `EXPO_PUBLIC_LITEWING_DRONE_HOST`, `EXPO_PUBLIC_LITEWING_DRONE_PORT`, and `EXPO_PUBLIC_LITEWING_APP_PORT`.
+
 Before baking values into `app.json` / env / code:
 
 - **Drone (or gateway) IPv4** on the AP subnet.
