@@ -1,127 +1,90 @@
 #include "motor.h"
-#include "driver/ledc.h"
 #include "driver/gpio.h"
-#include "esp_err.h"
+#include "soc/gpio_reg.h"
+#include "esp_timer.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "motor";
 
-// Hardware mapping — Motor 1: GPIO13/12, Motor 2: GPIO14/27, Motor 3: GPIO26/25, Motor 4: GPIO33/32
-static const int motor_pwm_gpios[4] = {13, 14, 26, 33};
-static const int motor_dir_gpios[4] = {12, 27, 25, 32};
-static const ledc_channel_t ledc_channels[4] = {
-    LEDC_CHANNEL_0, LEDC_CHANNEL_1, LEDC_CHANNEL_2, LEDC_CHANNEL_3};
+static const int motor_gpios[4] = {3, 4, 5, 6};
 
-#define LEDC_MODE LEDC_LOW_SPEED_MODE
-#define LEDC_TIMER LEDC_TIMER_0
-#define LEDC_DUTY_RES LEDC_TIMER_10_BIT
-#define LEDC_FREQUENCY 20000
-#define MAX_DUTY 1023
-#define MIN_DUTY 0
+#define DSHOT_MIN  48
+#define DSHOT_MAX  2047
 
-static int motor_duty[4] = {0, 0, 0, 0};
-static bool motor_on[4] = {false, false, false, false};
+#define GPIO_SET(pin)  REG_WRITE(GPIO_OUT_W1TS_REG, (1UL << (pin)))
+#define GPIO_CLR(pin)  REG_WRITE(GPIO_OUT_W1TC_REG, (1UL << (pin)))
+
+static uint16_t g_throttle[4] = {0, 0, 0, 0};
+
+static uint16_t dshot_make_frame(uint16_t throttle, bool telemetry)
+{
+    uint16_t value = (throttle << 1) | (telemetry ? 1 : 0);
+    uint8_t  crc   = (value ^ (value >> 4) ^ (value >> 8)) & 0x0F;
+    return (value << 4) | crc;
+}
+
+static void dshot_send(int gpio, uint16_t frame)
+{
+    for (int i = 15; i >= 0; i--)
+    {
+        bool    bit = (frame >> i) & 1;
+        int64_t t   = esp_timer_get_time();
+        GPIO_SET(gpio);
+        while ((esp_timer_get_time() - t) < (bit ? 2 : 1));
+        GPIO_CLR(gpio);
+        while ((esp_timer_get_time() - t) < 3);
+    }
+}
+
+void motors_tick(void)
+{
+    for (int i = 0; i < 4; i++)
+        dshot_send(motor_gpios[i], dshot_make_frame(g_throttle[i], false));
+}
 
 void motors_init(void)
 {
-    ESP_LOGI(TAG, "Initializing motors...");
+    ESP_LOGI(TAG, "Initializing DSHOT300...");
 
-    // Configure direction pins
-    uint64_t pin_mask = 0;
-    for (int i = 0; i < 4; i++)
-        pin_mask |= (1ULL << motor_dir_gpios[i]);
-
-    gpio_config_t dir_conf = {
-        .pin_bit_mask = pin_mask,
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_down_en = 0,
-        .pull_up_en = 0,
-        .intr_type = GPIO_INTR_DISABLE};
-    gpio_config(&dir_conf);
-
-    // Set all forward
-    for (int i = 0; i < 4; i++)
-        gpio_set_level(motor_dir_gpios[i], 0);
-
-    // Configure PWM timer
-    ledc_timer_config_t timer_conf = {
-        .speed_mode = LEDC_MODE,
-        .timer_num = LEDC_TIMER,
-        .duty_resolution = LEDC_DUTY_RES,
-        .freq_hz = LEDC_FREQUENCY,
-        .clk_cfg = LEDC_AUTO_CLK};
-    ESP_ERROR_CHECK(ledc_timer_config(&timer_conf));
-
-    // Configure PWM channels, all starting at duty=0 (stopped)
     for (int i = 0; i < 4; i++)
     {
-        ledc_channel_config_t channel_conf = {
-            .speed_mode = LEDC_MODE,
-            .channel = ledc_channels[i],
-            .timer_sel = LEDC_TIMER,
-            .intr_type = LEDC_INTR_DISABLE,
-            .gpio_num = motor_pwm_gpios[i],
-            .duty = 0,
-            .hpoint = 0};
-        ESP_ERROR_CHECK(ledc_channel_config(&channel_conf));
+        gpio_config_t cfg = {
+            .pin_bit_mask = (1ULL << motor_gpios[i]),
+            .mode         = GPIO_MODE_OUTPUT,
+            .pull_up_en   = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type    = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&cfg);
+        GPIO_CLR(motor_gpios[i]);
     }
 
-    ESP_LOGI(TAG, "Motors initialized (all off)");
+    ESP_LOGI(TAG, "Sending disarm frames for 2 seconds to arm ESC...");
+    int64_t t0 = esp_timer_get_time();
+    while (esp_timer_get_time() - t0 < 2000000)
+    {
+        motors_tick();
+    }
+    ESP_LOGI(TAG, "ESC armed");
 }
 
-static void motor_apply_duty(motor_t motor)
+void motor_set_throttle(motor_t motor, int throttle_pct)
 {
-    int duty = motor_on[motor] ? motor_duty[motor] : 0;
-    ESP_LOGI(TAG, "Motor %d -> duty %d", motor + 1, duty);
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, ledc_channels[motor], duty));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, ledc_channels[motor]));
-}
+    if (throttle_pct < 0)   throttle_pct = 0;
+    if (throttle_pct > 100) throttle_pct = 100;
 
-void motor_increase_speed(motor_t motor, int amount)
-{
-    motor_duty[motor] += amount;
-    if (motor_duty[motor] > MAX_DUTY)
-        motor_duty[motor] = MAX_DUTY;
-    motor_apply_duty(motor);
-}
+    uint16_t val = (throttle_pct == 0)
+        ? 0
+        : (uint16_t)(DSHOT_MIN + throttle_pct * (DSHOT_MAX - DSHOT_MIN) / 100);
 
-void motor_decrease_speed(motor_t motor, int amount)
-{
-    motor_duty[motor] -= amount;
-    if (motor_duty[motor] < MIN_DUTY)
-        motor_duty[motor] = MIN_DUTY;
-    motor_apply_duty(motor);
-}
-
-void motor_set_speed(motor_t motor, int duty)
-{
-    if (duty > MAX_DUTY)
-        duty = MAX_DUTY;
-    if (duty < MIN_DUTY)
-        duty = MIN_DUTY;
-    motor_duty[motor] = duty;
-    motor_apply_duty(motor);
-}
-
-void motor_set_on_off(motor_t motor, bool on)
-{
-    motor_on[motor] = on;
-    ESP_LOGI(TAG, "Motor %d %s", motor + 1, on ? "ON" : "OFF");
-    motor_apply_duty(motor);
-}
-
-void motor_set_direction(motor_t motor, bool forward)
-{
-    ESP_LOGI(TAG, "Motor %d direction: %s", motor + 1, forward ? "forward" : "reverse");
-    gpio_set_level(motor_dir_gpios[motor], forward ? 0 : 1);
+    g_throttle[motor] = val;
 }
 
 void motors_stop_all(void)
 {
     ESP_LOGI(TAG, "Stopping all motors");
     for (int i = 0; i < 4; i++)
-    {
-        motor_on[i] = false;
-        motor_apply_duty(i);
-    }
+        g_throttle[i] = 0;
 }
