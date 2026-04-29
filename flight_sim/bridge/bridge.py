@@ -22,8 +22,7 @@ Controls (click the plot window first so it has focus):
     W      — toggle wind on/off
     G      — one-shot gust impulse
     D      — drop (kill motors for 0.5 s)
-    1      — switch to minimal profile (60 g)
-    2      — switch to full profile (110 g)
+    1 / 2 / 3 — switch profile: 60 g micro / 110 g / 600 g brushless (3S)
 
 The ESP32 must be flashed with the flight_sim firmware.
 """
@@ -57,19 +56,18 @@ G       = 9.81
 RHO_AIR = 1.225
 DT      = 0.01
 
-ACCEL_NOISE_G  = 0.08   # real vibration on brushed micro quad, not datasheet value
-GYRO_NOISE_DPS = 2.0    # motor vibration couples into gyro at RPM harmonics
+ACCEL_NOISE_G  = 0.08   # default IMU vibration (micro brushed); profiles may override
+GYRO_NOISE_DPS = 2.0
 
-MOTOR_TAU = 0.015
+MOTOR_TAU = 0.015       # default motor+ESC time constant (s); brushless often faster
 
-# Battery (1S 3.7 V 400 mAh LiPo)
+# Legacy globals — superseded by per-profile v_nominal / r_pack_ohm / i_max_per_motor in PROFILES
 V_NOMINAL       = 3.7
-R_INTERNAL      = 0.1   # ohm per cell (decent small LiPo; cheap/old cells ~0.15)
-I_MAX_PER_MOTOR = 1.0    # A at max thrust (8520 running current, not stall)
+R_INTERNAL      = 0.1
+I_MAX_PER_MOTOR = 1.0
 
-# Gyroscopic precession
-J_PROP         = 1.0e-7
-MAX_PROP_RAD_S = 30000.0 * 2.0 * np.pi / 60.0
+# Gyroscopic precession (RPM scale comes from profile prop_max_rpm in QuadSim.step)
+J_PROP = 1.0e-7
 
 # Wind / aero
 GUST_REVERSION = 0.5
@@ -86,32 +84,105 @@ CRASH_ANGLE_DEG   = 60.0   # tilt at ground contact that counts as a crash
 # ---------------------------------------------------------------------------
 PROFILES = {
     "minimal": {
-        "mass":         0.060,
-        "arm_length":   0.065,
-        "max_thrust":   0.275,
-        "Ixx_k":        0.30,
-        "Izz_k":        0.60,
-        "rot_drag":     0.002,
-        "yaw_torque_k": 0.01,
-        "frontal_area": 0.008,
-        "Cd":           1.0,
-        "batt_count":   1,
-        "label": "60 g  (C3 + DRV8833 + 4x8520 + 1S LiPo + frame)",
+        "mass":            0.060,
+        "arm_length":      0.065,
+        "max_thrust":      0.275,
+        "Ixx_k":           0.30,
+        "Iyy_k":           0.30,
+        "Izz_k":           0.60,
+        "rot_drag":        0.002,
+        "yaw_torque_k":    0.01,
+        "frontal_area":    0.008,
+        "Cd":              1.0,
+        "label":           "60 g  (C3 + DRV8833 + 4x8520 + 1S LiPo + frame)",
+        "v_nominal":       3.7,
+        "v_min_clip":      2.5,
+        "r_pack_ohm":      0.10,
+        "i_max_per_motor": 1.0,
+        "motor_tau":       0.015,
+        "accel_noise_g":   0.08,
+        "gyro_noise_dps":  2.0,
+        "prop_max_rpm":    30000.0,
     },
     "full": {
-        "mass":         0.110,
-        "arm_length":   0.065,
-        "max_thrust":   0.275,
-        "Ixx_k":        0.40,
-        "Izz_k":        0.80,
-        "rot_drag":     0.003,
-        "yaw_torque_k": 0.01,
-        "frontal_area": 0.012,
-        "Cd":           1.1,
-        "batt_count":   2,
-        "label": "110 g (full build + S3 + GPS + baro + 2S parallel + shell)",
+        "mass":            0.110,
+        "arm_length":      0.065,
+        "max_thrust":      0.275,
+        "Ixx_k":           0.40,
+        "Iyy_k":           0.40,
+        "Izz_k":           0.80,
+        "rot_drag":        0.003,
+        "yaw_torque_k":    0.01,
+        "frontal_area":    0.012,
+        "Cd":              1.1,
+        "label":           "110 g (full build + S3 + GPS + baro + 2S parallel + shell)",
+        "v_nominal":       3.7,
+        "v_min_clip":      2.5,
+        "r_pack_ohm":      0.05,
+        "i_max_per_motor": 1.0,
+        "motor_tau":       0.015,
+        "accel_noise_g":   0.08,
+        "gyro_noise_dps":  2.0,
+        "prop_max_rpm":    30000.0,
+    },
+    # 5\" class brushless: ~600 g AUW, 3S 1300 mAh, 200 mm left–right / 150 mm front–back motor spacing
+    # Props: Ethix S5 GR PC (HQProp 5×4×3 tri-blade, polycarbonate — matches 5\" area/drag assumptions)
+    # max_thrust per motor is still a tuning knob (motor KV + ESC endpoints); ~4.5 N → ~3:1 thrust:weight
+    "brushless_600g": {
+        "mass":            0.600,
+        "arm_roll_m":      0.100,
+        "arm_pitch_m":     0.075,
+        "arm_length":      0.125,
+        "max_thrust":      4.5,
+        "Ixx_k":           0.38,
+        "Iyy_k":           0.38,
+        "Izz_k":           0.52,
+        "rot_drag":        0.014,
+        "yaw_torque_k":    0.018,
+        "frontal_area":    0.048,
+        "Cd":              1.15,
+        "label":           "600 g brushless — Ethix S5 GR PC (5×4×3), 3S 1300mAh, 200×150 mm",
+        "v_nominal":       11.1,
+        "v_min_clip":      9.0,
+        "r_pack_ohm":      0.075,
+        "i_max_per_motor": 12.0,
+        "motor_tau":       0.008,
+        "accel_noise_g":   0.05,
+        "gyro_noise_dps":  1.5,
+        "prop_max_rpm":    24000.0,
     },
 }
+
+PROFILE_BTN_LABELS = {
+    "minimal": "60g",
+    "full": "110g",
+    "brushless_600g": "600g",
+}
+
+
+def compute_hover_duty(prof, thrust_expo):
+    """PWM duty (0–1023) for approximate hover including battery sag (matches QuadSim.step)."""
+    weight = prof["mass"] * G
+    max_t = prof["max_thrust"]
+    v_nom = float(prof.get("v_nominal", V_NOMINAL))
+    r_pack = float(prof.get("r_pack_ohm", R_INTERNAL))
+    i_max = float(prof.get("i_max_per_motor", I_MAX_PER_MOTOR))
+    v_min = float(prof.get("v_min_clip", 2.5))
+    hover_duty = 1
+    for _ in range(1023):
+        norm = hover_duty / 1023.0
+        t_no_sag = 4.0 * max_t * (norm ** thrust_expo)
+        load_frac = t_no_sag / max(4.0 * max_t, 1e-9)
+        total_I = load_frac * 4.0 * i_max
+        v_batt = max(v_nom - total_I * r_pack, v_min)
+        v_scale = (v_batt / v_nom) ** 2
+        effective = t_no_sag * v_scale
+        if effective < weight:
+            hover_duty += 1
+        else:
+            break
+    return min(hover_duty, 1023)
+
 
 # ---------------------------------------------------------------------------
 # Packet helpers
@@ -159,7 +230,7 @@ def euler_to_R(phi, theta, psi):
 # ---------------------------------------------------------------------------
 class QuadSim:
 
-    def __init__(self, profile_name="minimal", thrust_expo=2.0):
+    def __init__(self, profile_name="brushless_600g", thrust_expo=2.0):
         self.thrust_expo = thrust_expo
         self._load_profile(profile_name)
         self.reset()
@@ -167,20 +238,32 @@ class QuadSim:
     def _load_profile(self, name):
         p = PROFILES[name]
         self.profile_name = name
-        self.mass      = p["mass"]
-        self.arm       = p["arm_length"]
+        self.mass       = p["mass"]
+        self.arm_roll   = float(p.get("arm_roll_m", p.get("arm_length", 0.065)))
+        self.arm_pitch  = float(p.get("arm_pitch_m", p.get("arm_length", 0.065)))
         self.max_thrust = p["max_thrust"]
-        self.Ixx       = self.mass * self.arm**2 * p["Ixx_k"]
-        self.Iyy       = self.Ixx
-        self.Izz       = self.mass * self.arm**2 * p["Izz_k"]
+        iyy_k = float(p.get("Iyy_k", p["Ixx_k"]))
+        # Roll about body X — lever along lateral span; pitch about body Y — along longitudinal span
+        self.Ixx = self.mass * (self.arm_roll ** 2) * p["Ixx_k"]
+        self.Iyy = self.mass * (self.arm_pitch ** 2) * iyy_k
+        arm_yaw = np.sqrt((self.arm_roll ** 2 + self.arm_pitch ** 2) / 2.0)
+        self.Izz = self.mass * (arm_yaw ** 2) * p["Izz_k"]
         self.rot_drag  = p["rot_drag"]
         self.yaw_k     = p["yaw_torque_k"]
         self.area      = p["frontal_area"]
         self.Cd        = p["Cd"]
-        self.batt_n    = p["batt_count"]
+        self.v_nominal = float(p.get("v_nominal", V_NOMINAL))
+        self.v_min_clip = float(p.get("v_min_clip", 2.5))
+        self.r_pack_ohm = float(p.get("r_pack_ohm", R_INTERNAL))
+        self.i_max_per_motor = float(p.get("i_max_per_motor", I_MAX_PER_MOTOR))
+        self.motor_tau = float(p.get("motor_tau", MOTOR_TAU))
+        self.accel_noise = float(p.get("accel_noise_g", ACCEL_NOISE_G))
+        self.gyro_noise = float(p.get("gyro_noise_dps", GYRO_NOISE_DPS))
+        self.prop_max_rpm = float(p.get("prop_max_rpm", 30000.0))
 
     def set_profile(self, name):
         self._load_profile(name)
+        self.battery_v = self.v_nominal
 
     def reset(self):
         self.phi   = 0.0
@@ -192,7 +275,7 @@ class QuadSim:
         self.pos   = np.zeros(3)
         self.vel   = np.zeros(3)
         self.thrust_actual = np.zeros(4)
-        self.battery_v     = V_NOMINAL
+        self.battery_v     = self.v_nominal
         self.wind_on       = False
         self.wind_base     = np.zeros(3)
         self.wind_gust     = np.zeros(3)
@@ -238,15 +321,18 @@ class QuadSim:
 
         # ---- battery voltage sag (previous-step current estimate) ----
         load_frac = np.sum(self.thrust_actual) / max(4.0 * self.max_thrust, 1e-9)
-        total_I   = load_frac * 4.0 * I_MAX_PER_MOTOR
-        r_eff     = R_INTERNAL / max(self.batt_n, 1)
-        self.battery_v = np.clip(V_NOMINAL - total_I * r_eff, 2.5, V_NOMINAL)
-        v_scale = (self.battery_v / V_NOMINAL) ** 2
+        total_I   = load_frac * 4.0 * self.i_max_per_motor
+        self.battery_v = np.clip(
+            self.v_nominal - total_I * self.r_pack_ohm,
+            self.v_min_clip,
+            self.v_nominal,
+        )
+        v_scale = (self.battery_v / self.v_nominal) ** 2
 
         # ---- thrust with motor lag ----
         norm   = np.array(duty, dtype=float) / 1023.0
         target = self.max_thrust * np.power(norm, self.thrust_expo) * v_scale
-        alpha  = dt / (MOTOR_TAU + dt)
+        alpha  = dt / (self.motor_tau + dt)
         self.thrust_actual += alpha * (target - self.thrust_actual)
         self.thrust_actual  = np.clip(self.thrust_actual, 0.0, None)
         t = self.thrust_actual
@@ -255,14 +341,15 @@ class QuadSim:
         R = euler_to_R(self.phi, self.theta, self.psi)
 
         # ---- torques ----
-        tau_roll  = self.arm * (t[0] + t[2] - t[1] - t[3])
-        tau_pitch = self.arm * (t[0] + t[1] - t[2] - t[3])
+        tau_roll  = self.arm_roll * (t[0] + t[2] - t[1] - t[3])
+        tau_pitch = self.arm_pitch * (t[0] + t[1] - t[2] - t[3])
         tau_yaw   = self.yaw_k * (t[1] + t[2] - t[0] - t[3])
 
         # gyroscopic precession: props 0,3 CW (-H), props 1,2 CCW (+H)
+        max_prop_rad_s = self.prop_max_rpm * 2.0 * np.pi / 60.0
         max_t_eff = max(self.max_thrust * v_scale, 1e-9)
         rpm_norm  = np.sqrt(np.clip(self.thrust_actual / max_t_eff, 0.0, 1.0))
-        H_net = J_PROP * MAX_PROP_RAD_S * (
+        H_net = J_PROP * max_prop_rad_s * (
             -rpm_norm[0] + rpm_norm[1] + rpm_norm[2] - rpm_norm[3]
         )
         tau_roll  +=  self.q * H_net
@@ -360,13 +447,13 @@ class QuadSim:
         sf_g     = sf_body / G
 
         # ICM-42670-P on ESP32-C3-DevKit-RUST-1: ax=body_Y, ay=body_X, az=body_Z
-        ax = sf_g[1] + np.random.normal(0, ACCEL_NOISE_G)
-        ay = sf_g[0] + np.random.normal(0, ACCEL_NOISE_G)
-        az = sf_g[2] + np.random.normal(0, ACCEL_NOISE_G)
+        ax = sf_g[1] + np.random.normal(0, self.accel_noise)
+        ay = sf_g[0] + np.random.normal(0, self.accel_noise)
+        az = sf_g[2] + np.random.normal(0, self.accel_noise)
 
-        gx = np.degrees(self.p) + np.random.normal(0, GYRO_NOISE_DPS)
-        gy = np.degrees(self.q) + np.random.normal(0, GYRO_NOISE_DPS)
-        gz = np.degrees(self.r) + np.random.normal(0, GYRO_NOISE_DPS)
+        gx = np.degrees(self.p) + np.random.normal(0, self.gyro_noise)
+        gy = np.degrees(self.q) + np.random.normal(0, self.gyro_noise)
+        gz = np.degrees(self.r) + np.random.normal(0, self.gyro_noise)
         return ax, ay, az, gx, gy, gz
 
 # ---------------------------------------------------------------------------
@@ -555,8 +642,8 @@ def main():
     parser.add_argument("--port", required=True,
                         help="ESP32 serial port (e.g. COM5)")
     parser.add_argument("--baud", type=int, default=115200)
-    parser.add_argument("--profile", choices=PROFILES.keys(), default="minimal",
-                        help="Mass/geometry profile")
+    parser.add_argument("--profile", choices=PROFILES.keys(), default="brushless_600g",
+                        help="Mass/geometry profile (default: 600 g brushless / 3S)")
     parser.add_argument("--pitch0", type=float, default=5.0,
                         help="Initial pitch disturbance (deg)")
     parser.add_argument("--roll0", type=float, default=3.0,
@@ -571,33 +658,16 @@ def main():
 
     prof = PROFILES[args.profile]
     thrust_ratio = 4.0 * prof["max_thrust"] / (prof["mass"] * G)
-
-    # iteratively solve for hover duty including battery sag
-    weight = prof["mass"] * G
-    max_t  = prof["max_thrust"]
-    batt_n = prof["batt_count"]
-    hover_duty = 500  # initial guess
-    for _ in range(50):
-        norm      = hover_duty / 1023.0
-        t_no_sag  = 4.0 * max_t * norm ** args.thrust_expo
-        load_frac = t_no_sag / (4.0 * max_t)
-        total_I   = load_frac * 4.0 * I_MAX_PER_MOTOR
-        r_eff     = R_INTERNAL / max(batt_n, 1)
-        v_batt    = max(V_NOMINAL - total_I * r_eff, 2.5)
-        v_scale   = (v_batt / V_NOMINAL) ** 2
-        effective = t_no_sag * v_scale
-        if effective < weight:
-            hover_duty += 1
-        else:
-            break
-    hover_duty = min(hover_duty, 1023)
+    hover_duty = compute_hover_duty(prof, args.thrust_expo)
 
     print(f"Profile: {args.profile} — {prof['label']}")
-    print(f"  mass         = {prof['mass']*1000:.0f} g")
-    print(f"  thrust/weight= {thrust_ratio:.2f}")
-    print(f"  hover duty   ~ {hover_duty}  (with battery sag, firmware HOVER_THROTTLE = 830)")
+    print(f"  mass          = {prof['mass']*1000:.0f} g")
+    vn = prof.get("v_nominal", V_NOMINAL)
+    print(f"  pack voltage  = {vn:.1f} V nominal (sim sag model)")
+    print(f"  thrust/weight = {thrust_ratio:.2f}")
+    print(f"  hover duty    ~ {hover_duty}  (tune firmware HOVER_THROTTLE to match your ESC)")
     if hover_duty > 900:
-        print(f"  WARNING: hover duty very high — marginal lift at this weight")
+        print("  WARNING: hover duty very high — marginal lift at this weight / thrust model")
 
     print(f"\nConnecting to ESP32 on {args.port} @ {args.baud} ...")
     ser = serial.Serial(args.port, args.baud, timeout=0.002, write_timeout=0.1)
@@ -618,7 +688,7 @@ def main():
 
     print(f"Initial: pitch={args.pitch0} deg  roll={args.roll0} deg  alt={args.alt0} m")
     print("Keys: Space=pause  R=reset  P/O=pitch  K/L=roll  Y=yaw")
-    print("      W=wind  G=gust  D=drop  1=60g  2=110g")
+    print("      W=wind  G=gust  D=drop  1=60g  2=110g  3=600g brushless")
     print("Close the plot window to stop.\n")
 
     # ================================================================
@@ -656,10 +726,12 @@ def main():
     ln_drift, = ax_pos.plot([], [], ls="--", label="Drift")
     leg_pos = ax_pos.legend(loc="upper right")
 
-    # battery voltage on right axis
+    # battery voltage on right axis (ylim follows active profile pack voltage)
     ax_batt = ax_pos.twinx()
     ax_batt.set_ylabel("Vbatt (V)")
-    ax_batt.set_ylim(2.5, 4.0)
+    _vn = float(prof.get("v_nominal", V_NOMINAL))
+    _vm = float(prof.get("v_min_clip", 2.5))
+    ax_batt.set_ylim(_vm - 0.5, _vn + 0.6)
     ln_vb, = ax_batt.plot([], [], color="tab:red", alpha=0.6, label="Vbatt")
     ax_batt.legend(loc="upper left")
 
@@ -716,7 +788,10 @@ def main():
     btn_wind = Button(fig.add_axes(_bx(y2, 0)), "Wind")
     btn_gust = Button(fig.add_axes(_bx(y2, 1)), "Gust")
     btn_drop = Button(fig.add_axes(_bx(y2, 2)), "Drop")
-    btn_prof = Button(fig.add_axes(_bx(y2, 3)), "60g")
+    btn_prof = Button(
+        fig.add_axes(_bx(y2, 3)),
+        PROFILE_BTN_LABELS.get(args.profile, args.profile),
+    )
 
     # ================================================================
     #  Callbacks
@@ -766,13 +841,22 @@ def main():
 
     def _set_profile(name):
         runner.sim.set_profile(name)
-        label = "60g" if name == "minimal" else "110g"
-        btn_prof.label.set_text(label)
-        print(f"\n  [PROFILE -> {name}]", flush=True)
+        runner.hover_duty = compute_hover_duty(PROFILES[name], args.thrust_expo)
+        btn_prof.label.set_text(PROFILE_BTN_LABELS.get(name, name))
+        p = PROFILES[name]
+        vn = float(p.get("v_nominal", V_NOMINAL))
+        vm = float(p.get("v_min_clip", 2.5))
+        ax_batt.set_ylim(vm - 0.5, vn + 0.6)
+        fig.canvas.draw_idle()
+        print(f"\n  [PROFILE -> {name}  hover_duty~{runner.hover_duty}]", flush=True)
 
     def on_prof(_e=None):
-        nxt = "full" if runner.sim.profile_name == "minimal" else "minimal"
-        _set_profile(nxt)
+        order = ("minimal", "full", "brushless_600g")
+        try:
+            i = order.index(runner.sim.profile_name)
+        except ValueError:
+            i = 0
+        _set_profile(order[(i + 1) % len(order)])
 
     btn_pause.on_clicked(on_pause)
     btn_reset.on_clicked(on_reset)
@@ -800,6 +884,7 @@ def main():
         elif key == 'd': on_drop()
         elif key == '1': _set_profile("minimal")
         elif key == '2': _set_profile("full")
+        elif key == '3': _set_profile("brushless_600g")
 
     fig.canvas.mpl_connect("key_press_event", _on_key)
 

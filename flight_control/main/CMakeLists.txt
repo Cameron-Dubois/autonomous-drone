@@ -1,5 +1,5 @@
 #source files for the main component
-set(srcs "main.c"
+set(srcs "main_motor_test.c"
          "icm42670p.c"
          "pid.c"
          "motor.c")

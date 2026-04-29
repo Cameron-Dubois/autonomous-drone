@@ -1,6 +1,10 @@
 //motor.h
-//brushed motor driver — matches the drone_ble API so the BLE GATT layer
-//and mobile app can drive motors with the same function calls
+//motor outputs — brushless ESC (servo-style PWM) in flight_control;
+//matches the drone_ble API shape so the BLE stack can stay compatible.
+//
+//PWM frequency, pulse min/max, and motor GPIOs come from Kconfig
+//(menuconfig → "Motor Configuration"). Defaults target the Aero Selfie
+//45A 4in1 (BLHeli_S/_32/AM32 family) at 490 Hz / 1000–2000 µs.
 
 #pragma once
 
@@ -22,7 +26,15 @@ typedef enum {
 #define MAX_DUTY     1023
 #define MIN_DUTY     0
 
+//configures the LEDC peripheral and starts driving idle pulses on every motor
+//channel. Must be called before any other motor_* function.
 void motors_init(void);
+
+//blocks for a few seconds while the motor channels keep emitting the idle
+//pulse, giving the ESC time to detect "throttle low" and arm cleanly. Without
+//this, BLHeli/AM32 ESCs will beep but refuse to spin the motor.
+//Call once after motors_init() and before commanding any non-zero throttle.
+void motors_wait_arm_ready(void);
 
 void motor_increase_speed(motor_t motor, int amount);
 void motor_decrease_speed(motor_t motor, int amount);
