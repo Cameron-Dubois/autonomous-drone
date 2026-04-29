@@ -17,9 +17,10 @@ void app_main(void)
 {
     motors_init();
 
+
     while (1)
     {
-        for (int pct = 10; pct <= 100; pct += 10)
+        for (int pct = 10; pct <= 10; pct += 10)
         {
             for (int i = 0; i < 4; i++)
                 motor_set_throttle((motor_t)i, pct);
