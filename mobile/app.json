@@ -15,10 +15,14 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSBluetoothAlwaysUsageDescription": "Aero Drone App needs Bluetooth to connect to your drone and send commands.",
         "NSLocalNetworkUsageDescription": "Aero Drone App needs local network access to connect to your drone's WiFi for video streaming.",
-        "NSLocationWhenInUseUsageDescription": "Location permission is required to detect WiFi networks for drone connection."
+        "NSLocationWhenInUseUsageDescription": "Location permission is required to detect WiFi networks for drone connection.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
+      "usesCleartextTraffic": true,
       "package": "com.anonymous.aerodroneapp",
       "permissions": [
         "android.permission.BLUETOOTH",
