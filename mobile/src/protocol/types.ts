@@ -79,6 +79,7 @@ export function buildRawCommandBytes(cmdId: number, payload?: number[]): Uint8Ar
 
 export type LinkStatus = "DISCONNECTED" | "CONNECTING" | "SECURE_LINK";
 
+/** Live state from the drone (BLE JSON/TEL). Legacy speed/alt kept until firmware drops them. */
 export type Telemetry = {
   link: LinkStatus;
   batteryPct: number;
@@ -87,4 +88,35 @@ export type Telemetry = {
   altM: number;
   rssiBars: 0 | 1 | 2 | 3 | 4;
   followMode: boolean;
+
+  /** From ESP32 `gps_fix_t.valid` / GNSS fix indication */
+  droneGpsValid: boolean;
+  /** WGS84 decimal degrees; null when no fix or not yet reported */
+  droneLat: number | null;
+  droneLon: number | null;
+  /** NMEA GGA–style fix quality; 0 when invalid or unknown */
+  droneGpsFixQuality: number;
+  /** In-view / used satellite count from fix; 0 when unknown */
+  droneGpsSatellites: number;
+  /** HDOP from fix; null when unknown */
+  droneGpsHdop: number | null;
 };
+
+/** Initial / disconnected telemetry; use everywhere a full `Telemetry` object is required. */
+export function createDefaultTelemetry(): Telemetry {
+  return {
+    link: "DISCONNECTED",
+    batteryPct: 0,
+    batteryMins: 0,
+    speedKmh: 0,
+    altM: 0,
+    rssiBars: 0,
+    followMode: false,
+    droneGpsValid: false,
+    droneLat: null,
+    droneLon: null,
+    droneGpsFixQuality: 0,
+    droneGpsSatellites: 0,
+    droneGpsHdop: null,
+  };
+}

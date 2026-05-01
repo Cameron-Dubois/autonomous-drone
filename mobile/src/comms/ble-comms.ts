@@ -3,19 +3,11 @@
  */
 
 import type { DroneComms } from "./comms";
-import type { Command, Telemetry } from "../protocol/types";
+import { type Command, type Telemetry, createDefaultTelemetry } from "../protocol/types";
 import { buildCommandBytes } from "../protocol/types";
 import { getBleClient, getStoredDeviceId, setStoredDeviceId } from "./BLE";
 
-const DEFAULT_TELEMETRY: Telemetry = {
-  link: "DISCONNECTED",
-  batteryPct: 0,
-  batteryMins: 0,
-  speedKmh: 0,
-  altM: 0,
-  rssiBars: 0,
-  followMode: false,
-};
+const DEFAULT_TELEMETRY: Telemetry = createDefaultTelemetry();
 
 /**
  * Parse telemetry from BLE payload. Supports:

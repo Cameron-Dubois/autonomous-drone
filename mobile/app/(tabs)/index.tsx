@@ -1,22 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions, Alert } from "react-native";
 import { useComms } from "../../src/context/CommsContext";
-import type { Telemetry } from "../../src/protocol/types";
+import { createDefaultTelemetry } from "../../src/protocol/types";
 import { spacing, fontSizes, radii, getPanelDimensions } from "../../src/theme/layout";
 
 export default function HomeScreen() {
     const comms = useComms();
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const styles = useMemo(() => getStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
-    const [tel, setTel] = useState<Telemetry>({
-        link: "DISCONNECTED",
-        batteryPct: 0,
-        batteryMins: 0,
-        speedKmh: 0,
-        altM: 0,
-        rssiBars: 0,
-        followMode: false,
-    });
+    const [tel, setTel] = useState(createDefaultTelemetry);
 
     useEffect(() => {
         const unsubscribe = comms.subscribeTelemetry(setTel);
