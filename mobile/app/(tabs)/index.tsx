@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions, Alert } from "react-native";
 import { useComms } from "../../src/context/CommsContext";
+import { usePhoneLocation } from "../../src/hooks/usePhoneLocation";
 import { createDefaultTelemetry } from "../../src/protocol/types";
 import { spacing, fontSizes, radii, getPanelDimensions } from "../../src/theme/layout";
 
@@ -9,6 +10,7 @@ export default function HomeScreen() {
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const styles = useMemo(() => getStyles(screenWidth, screenHeight), [screenWidth, screenHeight]);
     const [tel, setTel] = useState(createDefaultTelemetry);
+    const phoneLoc = usePhoneLocation();
 
     useEffect(() => {
         const unsubscribe = comms.subscribeTelemetry(setTel);
@@ -51,6 +53,39 @@ export default function HomeScreen() {
                         </Text>
                     </View>
                 </View>
+
+                    <View style={styles.phoneSection}>
+                        <Text style={styles.label}>THIS PHONE (GPS)</Text>
+                        {phoneLoc.permission === "granted" && phoneLoc.lat != null && phoneLoc.lon != null ? (
+                            <>
+                                <Text style={[styles.mono, styles.phoneCoords]}>
+                                    {phoneLoc.lat.toFixed(6)}°, {phoneLoc.lon.toFixed(6)}°
+                                </Text>
+                                {phoneLoc.accuracyM != null ? (
+                                    <Text style={styles.phoneSub}>±{Math.round(phoneLoc.accuracyM)} m</Text>
+                                ) : null}
+                            </>
+                        ) : phoneLoc.permission === "denied" ? (
+                            <>
+                                <Text style={styles.phoneMuted}>
+                                    Location denied —{" "}
+                                    <Text onPress={() => phoneLoc.retryPermission()} style={styles.phoneLink}>
+                                        try again
+                                    </Text>
+                                </Text>
+                                {phoneLoc.error ? <Text style={styles.phoneSub}>{phoneLoc.error}</Text> : null}
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.phoneMuted}>
+                                    {phoneLoc.permission === "unknown"
+                                        ? "Starting…"
+                                        : phoneLoc.error ??
+                                          (phoneLoc.permission === "granted" ? "Waiting for fix…" : "Location unavailable")}
+                                </Text>
+                            </>
+                        )}
+                    </View>
 
                 <View style={[styles.telemetry, styles.telemetryDisabled]}>
                     <Text style={[styles.label, styles.labelDisabled]}>Ground Speed</Text>
@@ -122,6 +157,16 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         flexDirection: "row",
         justifyContent: "space-between",
     },
+    phoneSection: { marginTop: spacing.xxl },
+    phoneCoords: { fontVariant: ["tabular-nums"] },
+    phoneSub: {
+        marginTop: 6,
+        fontSize: fontSizes.xs - 1,
+        color: "rgba(255,255,255,0.35)",
+        letterSpacing: 0.5,
+    },
+    phoneMuted: { marginTop: spacing.xs, fontSize: fontSizes.sm, color: "rgba(255,255,255,0.35)" },
+    phoneLink: { fontSize: fontSizes.sm, color: "#00f2ff", textDecorationLine: "underline" },
     label: { fontSize: fontSizes.xs, letterSpacing: 2, color: "rgba(255,255,255,0.4)" },
     mono: { marginTop: spacing.xs, fontSize: fontSizes.md, color: "white" },
     teal: { color: "#00f2ff" },
