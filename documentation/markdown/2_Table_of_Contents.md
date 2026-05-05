@@ -11,3 +11,5 @@
 - [Appendix 4 – Review](#appendix-4-review)
 - [GPS and Telemetry](#gps-and-telemetry)
 - [Communication Protocol](#communication-protocol)
+- [Mobile App Architecture](#mobile-app-architecture)
+- [Developer Onboarding](#developer-onboarding)
