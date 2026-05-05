@@ -27,17 +27,26 @@ flight_control/
 ```bash
 . $HOME/esp/esp-idf/export.sh
 cd flight_control
-idf.py set-target esp32          # first time only
-idf.py menuconfig                # set SDA/SCL pins and IMU address if needed
+
+# Set target chip — our board is ESP32-C3; sdkconfig.defaults already sets this
+idf.py set-target esp32c3        # first time only
+
+idf.py menuconfig                # adjust SDA/SCL pins and IMU address if needed
+idf.py build                     # compile-only check (no board required)
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
+> **Linux port access:** `sudo chmod a+rw /dev/ttyUSB0` if you get permission denied.
+>
+> **Default GPIO pins** are set in `sdkconfig.defaults` for the ESP32-C3-DevKit-RUST-1 board (SDA=GPIO10, SCL=GPIO8). If you are using a different board, run `idf.py menuconfig` and update the IMU pins before building.
+
 ### IMU wiring options (`menuconfig → IMU Configuration`)
 
-| Option | Default | Notes |
-|--------|---------|-------|
-| `CONFIG_IMU_I2C_SDA_GPIO` | 21 | I2C data pin |
-| `CONFIG_IMU_I2C_SCL_GPIO` | 22 | I2C clock pin |
+| Option | Default (sdkconfig.defaults) | Notes |
+|--------|------------------------------|-------|
+| `CONFIG_IMU_I2C_SDA_GPIO` | 10 | I2C data pin |
+| `CONFIG_IMU_I2C_SCL_GPIO` | 8 | I2C clock pin |
+| `CONFIG_IMU_I2C_FREQ_HZ` | 400000 | I2C clock frequency |
 | `CONFIG_IMU_AD0_HIGH` | off | Set if AD0 is pulled to VCC (I2C addr 0x69 instead of 0x68) |
 
 ---
