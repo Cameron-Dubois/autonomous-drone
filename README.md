@@ -1,6 +1,17 @@
 # Autonomous Drone
 
-UCSC **CSE 123** project: a small **quadcopter** built around **ESP32** firmware and a **React Native (Expo)** phone app. The drone talks to the phone over **Bluetooth LE** (and Wi‑Fi where used); onboard code handles **motors**, **sensors**, and **flight control**.
+UCSC **CSE 123** project — a small **quadcopter** built around ESP32 firmware and a React Native (Expo) phone app. The phone connects over **Bluetooth LE** for commands and telemetry, and over **Wi‑Fi** for camera streaming.
+
+---
+
+## Quick start (clone → test → contribute)
+
+```bash
+git clone https://github.com/Stephenwb1/autonomous-drone.git
+cd autonomous-drone
+```
+
+See the per-module READMEs below for full setup. For a guided walkthrough see [`documentation/markdown/13_Developer_Onboarding.md`](documentation/markdown/13_Developer_Onboarding.md).
 
 ---
 
@@ -8,62 +19,95 @@ UCSC **CSE 123** project: a small **quadcopter** built around **ESP32** firmware
 
 ```
 autonomous-drone/
-├── flight_control/     ESP32 firmware — sensor fusion, PID, and motor mixing (main flight loop)
-├── drone_ble/          ESP32 firmware — BLE GATT server and command/telemetry bridge
-├── drone_wifi/         ESP32 firmware — Wi‑Fi soft‑AP and HTTP utilities
-├── motor_tests/        Isolated motor‑driver tests (PlatformIO)
-├── Drone tests/        Hardware integration test suite (PlatformIO)
-├── mobile/             React Native (Expo) phone app — control UI, BLE/Wi‑Fi comms
-├── documentation/      Design documents, schematics, test plans, and diagrams
+├── flight_control/     ESP32 firmware — IMU, sensor fusion, PID, motor mixing
+├── drone_ble/          ESP32 firmware — BLE GATT server, command/telemetry bridge
+├── drone_wifi/         ESP32 firmware — Wi-Fi soft-AP and HTTP server
+├── motor_tests/        ESP32 firmware — standalone motor ramp-up test
+├── Drone tests/        Arduino/PlatformIO hardware integration test suite
+├── mobile/             React Native (Expo) phone app
+├── documentation/      Design docs, schematics, test plans, diagrams
 └── README.md           This file
 ```
 
 ---
 
+## Build and test status
+
+| Module | Build tool | Builds? | Automated tests | Notes |
+|--------|-----------|---------|-----------------|-------|
+| `flight_control` | ESP‑IDF `idf.py` | ✅ | Serial output only | Default target: ESP32‑C3 |
+| `drone_wifi` | ESP‑IDF `idf.py` | ✅ | Serial output only | Default target: ESP32‑C3 |
+| `motor_tests` | ESP‑IDF `idf.py` | ✅ | Serial output only | Default target: ESP32‑C3 |
+| `drone_ble` | ESP‑IDF `idf.py` | ⚠️ | Serial output only | Requires fix before first build — see [`drone_ble/README.md`](drone_ble/README.md) |
+| `Drone tests` | PlatformIO | ✅ | 8 hardware tests (need ESP32‑C3 + motors) | Upload one test at a time |
+| `mobile` | Node / Expo | ✅ | `npm test` (Jest, no device needed) | iOS Simulator unsupported — real device required for BLE/Wi‑Fi |
+
+---
+
 ## Prerequisites
 
-| Tool | Version | Used for |
-|------|---------|----------|
-| [ESP‑IDF](https://docs.espressif.com/projects/esp-idf/en/latest/) | v5.x | All ESP32 firmware |
-| [Node.js](https://nodejs.org/) | 18+ | Mobile app |
-| [Expo CLI](https://docs.expo.dev/) | latest | Mobile app dev server / builds |
-| [EAS CLI](https://docs.expo.dev/eas/) | latest | Cloud builds (iOS) |
-| [PlatformIO](https://platformio.org/) | latest | Motor and hardware tests |
+### ESP‑IDF firmware (flight_control, drone_ble, drone_wifi, motor_tests)
+
+1. Install **ESP‑IDF v5.x** following the [official guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/) for your OS.
+2. Source the environment in every terminal you use for firmware work:
+
+```bash
+# macOS / Linux
+. $HOME/esp/esp-idf/export.sh
+
+# Windows (PowerShell)
+$HOME\esp\esp-idf\export.ps1
+```
+
+3. Verify: `idf.py --version` should print a v5.x version.
+
+> **Linux serial port access:** if you get `Permission denied` on `/dev/ttyUSB0` or `/dev/ttyACM0`, run `sudo chmod a+rw /dev/<your-port>` once per session, or add yourself to the `dialout` group permanently: `sudo usermod -aG dialout $USER` (then log out and back in).
+
+### PlatformIO (Drone tests)
+
+Install the **PlatformIO** extension for VS Code from the [Extensions Marketplace](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide), or install the CLI:
+
+```bash
+pip install platformio
+```
+
+### Mobile app
+
+- **Node.js 18+** — https://nodejs.org/
+- **Expo CLI** — installed automatically via `npx`
+- **EAS CLI** (cloud iOS builds only) — `npm install -g eas-cli`
 
 ---
 
 ## Building and flashing firmware
 
-All three firmware projects (`flight_control`, `drone_ble`, `drone_wifi`) use **ESP‑IDF** with `idf.py`.
+The pattern is the same for all ESP‑IDF modules:
 
 ```bash
-# 1. Source ESP-IDF (adjust path to your install)
 . $HOME/esp/esp-idf/export.sh
+cd <module>              # e.g. flight_control
 
-# 2. Enter the firmware directory
-cd flight_control   # or drone_ble / drone_wifi
-
-# 3. Set the target chip (first time only)
-idf.py set-target esp32
-
-# 4. (Optional) open menuconfig to adjust GPIO pins, IMU address, etc.
-idf.py menuconfig
-
-# 5. Build, flash, and open the serial monitor
-idf.py -p /dev/ttyUSB0 flash monitor
+idf.py set-target esp32c3   # matches our ESP32-C3 board; only needed once per checkout
+idf.py menuconfig            # optional: adjust GPIO pins, SSID, etc.
+idf.py build                 # compile only — good for a quick sanity check
+idf.py -p /dev/ttyUSB0 flash monitor   # build + flash + open serial monitor
 ```
 
-Replace `/dev/ttyUSB0` with your serial port (`COMx` on Windows, `/dev/cu.usbserial-*` on macOS).
+> **⚠️ drone_ble requires one extra step before building.** The `dependencies.lock` file contains a hardcoded path to the original developer's machine. Delete it before your first build and let ESP‑IDF regenerate it:
+> ```bash
+> cd drone_ble
+> rm dependencies.lock
+> idf.py build
+> ```
+> See [`drone_ble/README.md`](drone_ble/README.md) for full details.
 
-### Which firmware to flash
+### Serial port by OS
 
-| Module | Purpose | Flash when |
-|--------|---------|------------|
-| `flight_control` | Full flight loop: IMU → sensor fusion → PID → motor mixing | Active flight testing |
-| `drone_ble` | BLE GATT server + command/telemetry bridge | Integrating with the mobile app |
-| `drone_wifi` | Wi‑Fi soft‑AP + HTTP server | Streaming or Wi‑Fi comms work |
-
-Only one firmware runs at a time. `flight_control` is the intended production image; `drone_ble` is used during mobile integration work.
+| OS | Typical port |
+|----|-------------|
+| Linux | `/dev/ttyUSB0` or `/dev/ttyACM0` |
+| macOS | `/dev/cu.usbserial-*` or `/dev/cu.SLAB_USBtoUART` |
+| Windows | `COM3`, `COM4`, etc. (check Device Manager) |
 
 ---
 
@@ -72,19 +116,24 @@ Only one firmware runs at a time. `flight_control` is the intended production im
 ```bash
 cd mobile
 npm install
-
-# Development server (Expo Go — no BLE/Wi‑Fi native modules)
-npx expo start
-
-# Development build with native BLE and Wi‑Fi (required for real drone comms)
-npx expo run:android    # Android device or emulator
-npx expo run:ios        # macOS only, requires Xcode
-
-# Cloud build for iOS (no Mac required)
-npx eas build --platform ios --profile development
 ```
 
-Set `EXPO_PUBLIC_BLE_MOCK=0` to force the real BLE stack (disables the in-app mock).
+### Running automated tests (no device required)
+
+```bash
+npm test               # Jest unit tests — runs anywhere
+npm run typecheck      # TypeScript check — runs anywhere
+npm run smoke          # typecheck + jest together
+```
+
+### Running the app
+
+| Method | Command | BLE/Wi‑Fi | Notes |
+|--------|---------|-----------|-------|
+| Expo Go | `npx expo start` | Mock only | Quickest way to see the UI; no real drone comms |
+| Android dev build | `EXPO_PUBLIC_BLE_MOCK=0 npx expo run:android` | ✅ Real | Requires Android device or emulator |
+| iOS dev build | `EXPO_PUBLIC_BLE_MOCK=0 npx expo run:ios` | ✅ Real (device only) | Requires macOS + Xcode; **iOS Simulator does not support BLE or Wi‑Fi native modules** — use a real iPhone |
+| iOS cloud build | `npx eas build --platform ios --profile development` | ✅ Real | No Mac required; install the `.ipa` on your iPhone |
 
 ---
 
@@ -94,30 +143,30 @@ Set `EXPO_PUBLIC_BLE_MOCK=0` to force the real BLE stack (disables the in-app mo
 Phone (React Native app)
   │
   ├── Bluetooth LE ──► drone_ble firmware (GATT server)
-  │                        │
-  │                        └── Commands decoded → motor_set_speed / arm / disarm
-  │                        └── Telemetry encoded → BLE notifications → app
+  │                         └── Commands: ARM/DISARM/ESTOP/SET_MOTOR/etc.
+  │                         └── Telemetry: TEL or JSON over BLE notifications
   │
-  └── Wi‑Fi ──────────► drone_wifi firmware (soft‑AP + HTTP)
-                             └── Camera frames / high‑bandwidth data
+  └── Wi-Fi ───────────► drone_wifi firmware (soft-AP + HTTP)
+                              └── GET /stream  →  camera / MJPEG (future)
+                              └── GET /        →  reachability probe
 ```
 
-- **Control and telemetry** travel over BLE. The app writes binary command packets and receives `TEL`/JSON telemetry strings via GATT notifications.
-- **High‑bandwidth data** (camera, future video) travels over Wi‑Fi once the phone has joined the drone's soft‑AP.
-- The phone's own GNSS position (`usePhoneLocation`) is displayed alongside drone telemetry but is **not** sent to the firmware.
-
-See [`drone_ble/BLE_PROTOCOL_MOBILE.md`](drone_ble/BLE_PROTOCOL_MOBILE.md) for full command and telemetry wire formats, and [`documentation/markdown/11_Communication_Protocol.md`](documentation/markdown/11_Communication_Protocol.md) for the overall communication architecture.
+Only one firmware image runs at a time:
+- Use **`drone_ble`** when working on mobile app integration.
+- Use **`flight_control`** when working on the flight loop (IMU, PID, motors).
+- Use **`drone_wifi`** when working on camera or Wi‑Fi streaming.
 
 ---
 
-## Documentation
+## Documentation index
 
-| Document | Location |
-|----------|----------|
-| Design document (full) | `documentation/markdown/` |
-| BLE protocol reference | `drone_ble/BLE_PROTOCOL_MOBILE.md` |
-| Communication protocol overview | `documentation/markdown/11_Communication_Protocol.md` |
+| Document | Path |
+|----------|------|
+| Developer onboarding (start here) | `documentation/markdown/13_Developer_Onboarding.md` |
+| Mobile app architecture | `documentation/markdown/12_Mobile_App_Architecture.md` |
+| Communication protocol | `documentation/markdown/11_Communication_Protocol.md` |
 | GPS and telemetry schema | `documentation/markdown/10_GPS_Telemetry.md` |
+| BLE protocol reference | `drone_ble/BLE_PROTOCOL_MOBILE.md` |
 | Test plan | `documentation/test-plan.md` |
-| Test results | `documentation/test-documentation.md` |
-| Schematics (PDF) | `documentation/Drone_Schematic_*.pdf` |
+| Schematics | `documentation/Drone_Schematic_*.pdf` |
+| Full design document | `documentation/markdown/` |
