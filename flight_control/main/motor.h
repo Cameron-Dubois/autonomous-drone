@@ -15,6 +15,18 @@
 extern "C" {
 #endif
 
+/* Physical-to-code motor mapping VERIFIED on this drone (matches the
+ * motor_tests project's motor.h):
+ *   MOTOR_1 = Back-Left   (GPIO 3)  CCW prop
+ *   MOTOR_2 = Front-Left  (GPIO 4)  CW  prop
+ *   MOTOR_3 = Back-Right  (GPIO 5)  CW  prop
+ *   MOTOR_4 = Front-Right (GPIO 6)  CCW prop
+ *
+ * GPIOs are configurable in Kconfig (Motor Configuration).
+ *
+ * NOTE: The X-mix in main.c is written in terms of MOTOR_1..MOTOR_4 and was
+ * authored before this corner mapping was confirmed. Verify mix signs with
+ * the bench tilt test described at the top of main.c BEFORE flying. */
 typedef enum {
     MOTOR_1 = 0,
     MOTOR_2 = 1,
