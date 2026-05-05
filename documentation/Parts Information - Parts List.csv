@@ -1,5 +1,5 @@
-Item: ,Quantity ,Weight: ,Width: ,Length: ,Power supply: ,Information: ,Wiring ,Link: ,Manufacturer 
-GY-BMP280-3.3 High Precision Atmospheric Pressure Sensor Module Digital Barometric Pressure Altitude Sensor,1,‎0.634 ounces,11.5mm,15mm ,3v ,"- Digital interfaces: I²C (up to 3.4 MHz)/SPI (3 and 4 wire, up to 10 MHz)
+Item: ,Quantity ,Weight: ,Width: ,Length: ,height: ,Power supply: ,Information: ,Wiring ,Link: ,Manufacturer 
+GY-BMP280-3.3 High Precision Atmospheric Pressure Sensor Module Digital Barometric Pressure Altitude Sensor,1,‎0.634 ounces,11.5mm,15mm ,,3v ,"- Digital interfaces: I²C (up to 3.4 MHz)/SPI (3 and 4 wire, up to 10 MHz)
 - Air pressure range: 300-1100hPa
 - Current consumption:2.7µA @ 1 Hz sampling rate
 - Pin pitch: 2.54mm
@@ -11,14 +11,14 @@ Typical application:
 - Weather forecast
 - Health care application(e.g. sirometry)
 - Vertical velocity indication(e.g. risk/sink speed)",,https://www.amazon.com/KOOBOOK-GY-BMP280-3-3-Precision-Atmospheric-Barometric/dp/B07S98QBTQ,KOOBOOK
- QMC5883P GY-271 3-5V IIC Triple Axis Compass Magnetic Sensor Module Electronic Compass Module,1,0.493 ounces ,0.55 mm,0.16 mm,3-5v ,"Measuring range : +/- 1.3-8 Gauss
+ QMC5883P GY-271 3-5V IIC Triple Axis Compass Magnetic Sensor Module Electronic Compass Module,1,0.493 ounces ,0.55 mm,0.16 mm,,3-5v ,"Measuring range : +/- 1.3-8 Gauss
 Means of communication: IIC communication protocol
 Using high-quality immersion gold PCB, machine welding process to ensure quality","VCC: supply voltage 3.3V to 5V
 GND: Ground connection
 SCL: clock line
 SDA: Data line
 DRDY: Data Ready",https://www.amazon.com/HiLetgo-QMC5883P-Magnetic-Electronic-Compatible/dp/B008V9S64E,HiLetgo 
-NewBeeDrone M10Q Micro GPS w/ Compass,1,~2.16G,17mm,12mm ,5v ,"Micro Design: Ultra-lightweight and compact, perfect for mini and racing drones.
+NewBeeDrone M10Q Micro GPS w/ Compass,1,~2.16G,17mm,12mm ,,5v ,"Micro Design: Ultra-lightweight and compact, perfect for mini and racing drones.
 Integrated Compass: Provides accurate heading information for improved navigation.
 High Sensitivity: Ensures reliable performance in various flight conditions.
 Easy Installation: Simple to set up with your existing drone systems.
@@ -29,7 +29,7 @@ BAUD rate: 115200 DPS
 Output frequency : 1HZ - 10HZ, default 10HZ
 Speed accuracy: 005M/S
 ",,https://newbeedrone.com/products/newbeedrone-m10q-micro-gps-module-with-compass,NewBeeDrone 
-Ultra Light Nano FPV Camera,1,2g ,14mm (19mm with bracket) ,14mm (19mm with bracket) ,DC 5-25v,"- Model: Caddx Ant Analog Camera
+Ultra Light Nano FPV Camera,1,2g ,14mm (19mm with bracket) ,14mm (19mm with bracket) ,,DC 5-25v,"- Model: Caddx Ant Analog Camera
 - Image Sensor: 1/3"" CMOS Sensor
 - Horizontal Resolution: 1200 TVL
 - TV System: NTSC
@@ -49,7 +49,7 @@ Ultra Light Nano FPV Camera,1,2g ,14mm (19mm with bracket) ,14mm (19mm with brac
 - Work Temperature: -20℃~+60℃
 - Work Humidity: 20%~80%
 - Color: silver/Black",,https://www.amazon.com/Caddx-Camera-1200TVL-Global-Aspect/dp/B088TDTL1M?th=1,SoloGood
-ESP32- C3 - DevKitC - RUST-2,1,9 grams,63.5mm,22.86 mm ,5v (requires a minimum of  0.5 mA current)  ,"- operating clock frequency up to 160 MHZ
+ESP32- C3 - DevKitC - RUST-2,1,9 grams,63.5mm,22.86 mm ,,5v (requires a minimum of  0.5 mA current)  ,"- operating clock frequency up to 160 MHZ
 - zero wait cycle access to on-chip SRAM and Cache for program and data access over IRAM/DRAM interfrace 
 - interrupt controller (INTC) with up to 31 vectored interrupts with programmable priority and threshold levels 
 - debug module (DM) compliant with RISC-V debug specification v0.13 with external debugger support
@@ -59,19 +59,22 @@ over an industry-standard JTAG/USB port
 -  Physical memory protection (PMP) for up to 16 configurable regions
 -  32-bit AHB system bus for peripheral access
 -  Configurable events for core performance metrics",,https://documentation.espressif.com/esp32-c3_datasheet_en.pdf,Espressif Systems 
-YoungRC 82520 coreless motor brushed motors and propeller,4,0.64 ounces,0.33 inches ,0.78 inches ,3.2 volts,"- Fast 8.5x20mm coreless brushed motor set (For Hubsan X4 H107C or H107D)
+YoungRC 82520 coreless motor brushed motors and propeller,4,0.64 ounces,0.33 inches ,0.78 inches ,,3.2 volts,"- Fast 8.5x20mm coreless brushed motor set (For Hubsan X4 H107C or H107D)
 - More thrust and power with 60mm cable.
 - Motor Diameter: 8.5mm,Motor Length: 20mm,Shaft Diameter: 1.0mm.
 - High output power with well-matched propellers.
 - Package List: 2x 8520 Motors CW; 2x 8520 Motors CCW; 2x CW Propellers(55mm); 2x CCW Propellers(55mm).
 ",,https://www.amazon.com/dp/B078NL9KQQ?ref=ppx_yo2ov_dt_b_fed_asin_title,YoungRC
-DRV8833 motor drive module controller board,1,0.04 kilograms ,18.5mm ,16mm ,3-10 volts,"- single H bridge output current: 1.5A, can drive 2 DC geared motors
+DRV8833 motor drive module controller board,1,0.04 kilograms ,18.5mm ,16mm ,,3-10 volts,"- single H bridge output current: 1.5A, can drive 2 DC geared motors
 - built-in overcurrent protection, short circuit protection, undervoltage lockout and overtemperature proectection, with low power sleep mode
 - it can drive DC motors up to 1.5A and 4-wire stepper motors","- ULT low level for sleep mode (need to disconnect the J2 short solder joint behind the module)
 - OUT1 and OUT2 are one H bridge, corresponding control is IN1 and IN2
 - OUT3, OUT4 is the second H bridge, correspoonding control is IN3, IN4
 - EEP protects the output and is not used by default 
 - VSS input voltage from 3 to 10v  ",https://www.amazon.com/dp/B07S7Z8CFL?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1,KOOBOOK
-Lithium Polymer Battery 3.7v 400mAh ,1,~11 grams ,21mm ,41mm,3.7v,"- Basic info: Voltage: 3.7V; Capacity: 400mAh, Battery size (WxLxH): 8 X 21 X 41 mm / 0.31 X 0.83 X 1.61 inch
+Lithium Polymer Battery 3.7v 400mAh ,4,~11 grams ,21mm ,41mm,,3.7v,"- Basic info: Voltage: 3.7V; Capacity: 400mAh, Battery size (WxLxH): 8 X 21 X 41 mm / 0.31 X 0.83 X 1.61 inch
 - PCM protection function: over charge, over discharge, over current, short circuit protection, over temperature protection
 - storage and application : sotre battery in cool and dry place.Recommended to charge the battery eveyr 4 months after receipt of the battery ",,https://www.amazon.com/HRYHWASE-Rechargeable-Replacement-Connector-Accessory/dp/B0CQP4NR52?crid=1D1R0E2NGKJKU&dib=eyJ2IjoiMSJ9.aBwYL86FjyzycXjbGCTqChe9CfZBmdcfn88RKIm8Tkt9wHREcxpnclFsVVTyBi3bvamx7htdPlOhxHejW1Figd3jv-CS9ucWoXHtyn_hI6ytHTniJVEr_9aiBXm0GsTWeFESG66myXpr04i5CX9TxnftmIEYnNviCDeUkcYLwa85xMzLOjqCNhml-Fm_F5guV8JholW2rRs9eEayx0hNzZiNfCGa7e0kVek0oxWVZZ_4LxR0NA9_9dukS2DgXId3fy6RKdFanrTSDwIc9yjrmI-a3T3mxb39SB_al36FSKc.uF5rqoAS_xENTGSKG64X3RWOkucGNtapJf4ndlMj4OE&dib_tag=se&keywords=3.7v+lipo+battery+400mAh+tv752035&qid=1772504272&s=electronics&sprefix=3.7v+lipo+battery+400mah+tv752035%2Celectronics%2C143&sr=1-8,HRYHWASE
+"Freenove ESP32-S3 ESP32 S3 CAM Camera Wi-Fi Bluetooth Board, Dual-core 32-bit 240 MHz Microcontroller, Python C Code, Example Projects Tutorial",1,2.15 grams,18.0mm ,25.55mm ,3.1mm ,requires 3v to 3.6v,"- GPIO and pins
+The Freenove tutorial documents four ESP32-S3 strapping pins: GPIO0, GPIO45, GPIO46, and GPIO3. It also notes that when OPI PSRAM is used, GPIO35–GPIO37 are unavailable, GPIO38–GPIO40 are used for the SD card slot, GPIO19 and GPIO20 are used for USB in MicroPython, and the camera uses GPIO4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, and 18.
+https://documentation.espressif.com/esp32-s3_datasheet_en.pdf ",,https://www.amazon.com/FREENOVE-ESP32-S3-WROOM-Compatible-Wireless-Detailed/dp/B0BMQ8F7FN?th=1,

@@ -13,6 +13,12 @@ static const char *TAG = "motor";
 
 static const int motor_gpios[4] = {3, 4, 5, 6};
 
+int motor_get_gpio(int motor_idx)
+{
+    if (motor_idx < 0 || motor_idx > 3) return -1;
+    return motor_gpios[motor_idx];
+}
+
 #define DSHOT_MIN  48
 #define DSHOT_MAX  2047
 

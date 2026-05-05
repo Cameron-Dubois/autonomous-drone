@@ -1,97 +1,135 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- |
+# drone\_ble — ESP32 BLE GATT firmware
 
-# BLE Peripheral Example
+BLE GATT server that bridges the mobile app to the drone's motors. Advertises as **DroneBLE**, accepts command writes from the phone, drives motors, and sends telemetry notifications back.
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+---
 
-This example creates GATT server and then starts advertising, waiting to be connected to a GATT client.
+## ⚠️ Known build issue — fix required before first build
 
-It uses ESP32's Bluetooth controller and NimBLE stack based BLE host.
+The `dependencies.lock` file in this directory contains a **hardcoded absolute path** to the original developer's machine:
 
-This example aims at understanding GATT database configuration, handling GATT reads and writes, handling subscribe events, understanding advertisement and SMP related NimBLE APIs.
-
-It also demonstrates security features of NimBLE stack. SMP parameters like I/O capabilities of device, Bonding flag, MITM protection flag and Secure Connection only mode, Enabling Link Encryption etc., can be configured through menuconfig options.
-
-For RPA feature (currently Host based privacy feature is supported), use API `ble_hs_pvcy_rpa_config` to enable/disable host based privacy, `own_addr_type` needs to be set to `BLE_ADDR_RANDOM` to use this feature. Please include `ble_hs_pvcy.h` while using this API. As `ble_hs_pvcy_rpa_config` configures host privacy and sets address in controller, it is necessary to call this API after host-controller are synced (e.g. in `bleprph_on_sync` callback).
-
-To test this demo, any BLE scanner app can be used.
-
-Note :
-
-* To install the dependency packages needed, please refer to the top level [README file](../../../README.md#running-test-python-script-pytest).
-
-## How to Use Example
-
-Before project configuration and build, be sure to set the correct chip target using:
-
-```bash
-idf.py set-target <chip_name>
+```
+path: /home/stephenwb/esp/esp-idf/examples/bluetooth/nimble/common/nimble_peripheral_utils
 ```
 
-### Configure the project
+This path does not exist on any other machine, so `idf.py build` will fail with a component resolution error.
 
-Open the project configuration menu:
+**Fix — delete the lock file before building:**
 
 ```bash
+cd drone_ble
+rm dependencies.lock
+idf.py build
+```
+
+ESP‑IDF will regenerate `dependencies.lock` using the `${IDF_PATH}` variable from your local install. You only need to do this once after cloning.
+
+---
+
+## Directory layout
+
+```
+drone_ble/
+├── main/
+│   ├── main.c          BLE init, advertising, app_main
+│   ├── gatt_svr.c      GATT server — service/characteristic definitions, read/write/notify
+│   ├── bleprph.h       Command ID enum (drone_cmd_id_t), shared constants
+│   ├── motor.c/.h      Brushed motor driver (same API as flight_control)
+│   ├── motor_test.c    Standalone motor test (swap into CMakeLists to use)
+│   ├── idf_component.yml   Declares nimble_peripheral_utils dependency
+│   └── Kconfig.projbuild   menuconfig: BLE security options, IMU/motor GPIO pins
+├── CMakeLists.txt
+├── sdkconfig.defaults      Enables NimBLE BLE stack
+├── dependencies.lock       ⚠️ Delete before first build on a new machine
+└── BLE_PROTOCOL_MOBILE.md  Full protocol reference for mobile ↔ firmware
+```
+
+---
+
+## Prerequisites
+
+- **ESP‑IDF v5.x** — https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/
+- The `nimble_peripheral_utils` component ships with ESP‑IDF at `$IDF_PATH/examples/bluetooth/nimble/common/nimble_peripheral_utils`. It does **not** need to be downloaded separately.
+
+---
+
+## Build and flash
+
+```bash
+# 1. Source ESP-IDF
+. $HOME/esp/esp-idf/export.sh
+
+# 2. Enter the directory
+cd drone_ble
+
+# 3. Delete stale lock file (REQUIRED on first build after cloning)
+rm dependencies.lock
+
+# 4. Set target chip
+idf.py set-target esp32    # or esp32c3 / esp32c6 — match your board
+
+# 5. (Optional) adjust GPIO pins for motors / IMU
 idf.py menuconfig
+
+# 6. Build, flash, monitor
+idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-In the `Example Configuration` menu:
-
-* Select I/O capabilities of device from `Example Configuration --> I/O Capability`, default is `Just_works`.
-* Enable/Disable other security related parameters `Bonding, MITM option, secure connection(SM SC)`.
-
-### Build and Flash
-
-Run `idf.py -p PORT flash monitor` to build, flash and monitor the project.
-
-(To exit the serial monitor, type ``Ctrl-]``.)
-
-See the [Getting Started Guide](https://idf.espressif.com/) for full steps to configure and use ESP-IDF to build projects.
-
-## Example Output
-
-There is this console output when bleprph is connected and characteristic is read:
+Successful startup looks like:
 
 ```
-I (118) BTDM_INIT: BT controller compile version [fe7ced0]
-I (118) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE
-W (128) phy_init: failed to load RF calibration data (0xffffffff), falling back to full calibration
-I (268) phy: phy_version: 4100, 6fa5e27, Jan 25 2019, 17:02:06, 0, 2
-I (508) NimBLE_BLE_PRPH: BLE Host Task Started
-I (508) uart: queue free spaces: 8
-GAP procedure initiated: stop advertising.
-Device Address: xx:xx:xx:xx:xx:xx
-GAP procedure initiated: advertise; disc_mode=2 adv_channel_map=0 own_addr_type=0 adv_filter_policy=0 adv_itvl_min=0 adv_itvl_max=0
-connection established; status=0 handle=0 our_ota_addr_type=0 our_ota_addr=xx:xx:xx:xx:xx:xx our_id_addr_type=0 our_id_addr=xx:xx:xx:xx:xx:xx peer_ota_addr_type=1 peer_ota_addr=xx:xx:xx:xx:xx:xx peer_id_addr_type=1 peer_id_addr=xx:xx:xx:xx:xx:xx conn_itvl=39 conn_latency=0 supervision_timeout=500 encrypted=0 authenticated=0 bonded=0
-
-connection updated; status=0 handle=0 our_ota_addr_type=0 our_ota_addr=xx:xx:xx:xx:xx:xx our_id_addr_type=0 our_id_addr=xx:xx:xx:xx:xx:xx peer_ota_addr_type=1 peer_ota_addr=xx:xx:xx:xx:xx:xx peer_id_addr_type=1 peer_id_addr=xx:xx:xx:xx:xx:xx conn_itvl=6 conn_latency=0 supervision_timeout=500 encrypted=0 authenticated=0 bonded=0
-
-I (50888) NimBLE_BLE_PRPH: PASSKEY_ACTION_EVENT started
-
-I (50888) NimBLE_BLE_PRPH: Passkey on device's display: xxxxxx
-I (50888) NimBLE_BLE_PRPH: Accept or reject the passkey through console in this format -> key Y or key N
-key Y
-I (50898) NimBLE_BLE_PRPH: ble_sm_inject_io result: 0
-
-encryption change event; status=0 handle=0 our_ota_addr_type=0 our_ota_addr=xx:xx:xx:xx:xx:xx our_id_addr_type=0 our_id_addr=xx:xx:xx:xx:xx:xx peer_ota_addr_type=1 peer_ota_addr=xx:xx:xx:xx:xx:xx peer_id_addr_type=1
-peer_id_addr=xx:xx:xx:xx:xx:xx conn_itvl=6 conn_latency=0 supervision_timeout=500 encrypted=1 authenticated=1 bonded=1
-
-connection updated; status=0 handle=0 our_ota_addr_type=0 our_ota_addr=xx:xx:xx:xx:xx:xx our_id_addr_type=0 our_id_addr=xx:xx:xx:xx:xx:xx
-peer_ota_addr_type=1 peer_ota_addr=xx:xx:xx:xx:xx:xx peer_id_addr_type=1 peer_id_addr=xx:xx:xx:xx:xx:xx conn_itvl=39 conn_latency=0 supervision_timeout=500 encrypted=1 authenticated=1 bonded=1
-
-subscribe event; conn_handle=1 attr_handle=19 reason=1 prevn=0 curn=1 previ=0 curi=0
-Subscribe to attribute (19) successful
-subscribe event; conn_handle=1 attr_handle=25 reason=1 prevn=0 curn=1 previ=0 curi=0
-Subscribe to attribute (25) successful
-GATT procedure initiated: notify; att_handle=25
-Notification sent successfully
+I (...)  NimBLE_BLE_PRPH: BLE Host Task Started
+GAP procedure initiated: advertise; ...
 ```
 
-## Note
-* NVS support is not yet integrated to bonding. So, for now, bonding is not persistent across reboot.
+The ESP32 is now advertising as **DroneBLE** and waiting for a connection.
 
-## Troubleshooting
+---
 
-For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
+## menuconfig options
+
+### Motor GPIO (`Motor Configuration`)
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `CONFIG_MOTOR_1_PWM_GPIO` | 0 | Motor 1 PWM pin |
+| `CONFIG_MOTOR_1_DIR_GPIO` | 1 | Motor 1 direction pin |
+| `CONFIG_MOTOR_2_PWM_GPIO` | 3 | Motor 2 PWM pin |
+| `CONFIG_MOTOR_2_DIR_GPIO` | 4 | Motor 2 direction pin |
+| `CONFIG_MOTOR_3_PWM_GPIO` | 5 | Motor 3 PWM pin |
+| `CONFIG_MOTOR_3_DIR_GPIO` | 6 | Motor 3 direction pin |
+| `CONFIG_MOTOR_4_PWM_GPIO` | 7 | Motor 4 PWM pin |
+| `CONFIG_MOTOR_4_DIR_GPIO` | 9 | Motor 4 direction pin |
+
+### IMU GPIO (`ICM-42670-P IMU Configuration`)
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `CONFIG_IMU_I2C_SDA_GPIO` | 4 | I2C SDA pin |
+| `CONFIG_IMU_I2C_SCL_GPIO` | 5 | I2C SCL pin |
+| `CONFIG_IMU_I2C_FREQ_HZ` | 400000 | I2C clock (Hz) |
+| `CONFIG_IMU_AD0_HIGH` | off | Set if IMU AD0 pin is pulled HIGH (addr 0x69) |
+
+---
+
+## GATT layout
+
+| Role | UUID |
+|------|------|
+| Service | `59462f12-9543-9999-12c8-58b459a2712d` |
+| Characteristic | `33333333-2222-2222-1111-111100000000` |
+
+- **Writes (phone → drone):** binary command packet, Base64-encoded.
+- **Notifications (drone → phone):** telemetry string (`TEL …` or JSON), Base64-encoded.
+
+See [`BLE_PROTOCOL_MOBILE.md`](BLE_PROTOCOL_MOBILE.md) for the full packet format, command table, and telemetry key reference.
+
+---
+
+## Verifying with the mobile app
+
+1. Flash this firmware and confirm `DroneBLE` appears in the serial monitor.
+2. Open the mobile app → **Connect** tab → **Scan for Devices**.
+3. Tap **DroneBLE** → connect.
+4. The **Home** tab should show `SECURE_LINK`.
+5. Open the **Control** tab → press the **Arm** button (D-pad centre) — the firmware should log the received command.

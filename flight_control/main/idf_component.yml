@@ -1,0 +1,5 @@
+dependencies:
+  # Provides ble_store_config_init() and the ble_store_util_status_rr helper
+  # used by ble_command.c. Pulled directly from the IDF NimBLE example tree.
+  nimble_peripheral_utils:
+    path: ${IDF_PATH}/examples/bluetooth/nimble/common/nimble_peripheral_utils

@@ -9,3 +9,7 @@
 - [Appendix 2 – Planning](#appendix-2-planning)
 - [Appendix 3 – Test Plan & Results](#appendix-3-test-plan-results)
 - [Appendix 4 – Review](#appendix-4-review)
+- [GPS and Telemetry](#gps-and-telemetry)
+- [Communication Protocol](#communication-protocol)
+- [Mobile App Architecture](#mobile-app-architecture)
+- [Developer Onboarding](#developer-onboarding)
