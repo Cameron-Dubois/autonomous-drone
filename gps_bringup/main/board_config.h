@@ -16,3 +16,9 @@
 #define I2C_SCL_PIN         GPIO_NUM_8
 #define I2C_FREQ_HZ         100000
 #define I2C_TIMEOUT_MS      50
+
+/* Compass output tuning */
+#define COMPASS_DECLINATION_DEG  13.2f  /* Santa Cruz area magnetic declination (approx) */
+#define COMPASS_EMA_ALPHA        0.20f  /* 0..1, lower is smoother */
+/* Use hard-iron corrected heading only when both axes span at least this (matches cal_q PARTIAL). */
+#define COMPASS_MIN_CAL_SPAN_FOR_HEADING 120

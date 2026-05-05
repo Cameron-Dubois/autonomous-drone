@@ -29,6 +29,8 @@ static void sensor_task(void *arg)
 
             float heading = 0.0f;
             bool compass_ok = compass_read_heading_deg(&heading);
+            compass_debug_t cdbg = {0};
+            bool cdbg_ok = compass_get_debug(&cdbg);
 
             const char *ctype = "NONE";
             switch (compass_get_type()) {
@@ -37,12 +39,30 @@ static void sensor_task(void *arg)
                 default: break;
             }
 
-            ESP_LOGI(TAG,
-                     "GPS valid=%d fix=%d sats=%d hdop=%.1f lat=%.6f lon=%.6f | uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f deg",
-                     fix.valid, fix.fix_quality, fix.satellites, fix.hdop,
-                     fix.lat_deg, fix.lon_deg,
-                     (unsigned long)rx_per_sec, (unsigned long)st.gga_parsed_count,
-                     ctype, compass_ok ? "OK" : "WAIT", heading);
+            if (cdbg_ok) {
+                int dx = (int)cdbg.x_max - (int)cdbg.x_min;
+                int dy = (int)cdbg.y_max - (int)cdbg.y_min;
+                const char *cal_quality = ((dx >= 300) && (dy >= 300)) ? "GOOD" :
+                                          ((dx >= 120) && (dy >= 120)) ? "PARTIAL" : "POOR";
+                ESP_LOGI(TAG,
+                         "GPS valid=%d fix=%d sats=%d hdop=%.1f lat=%.6f lon=%.6f | uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f raw=%.1f cal=%.1f x=%d y=%d x[%d..%d] y[%d..%d] dx=%d dy=%d cal_ok=%d cal_q=%s",
+                         fix.valid, fix.fix_quality, fix.satellites, fix.hdop,
+                         fix.lat_deg, fix.lon_deg,
+                         (unsigned long)rx_per_sec, (unsigned long)st.gga_parsed_count,
+                         ctype, compass_ok ? "OK" : "WAIT", heading,
+                         cdbg.heading_raw_deg, cdbg.heading_cal_deg,
+                         (int)cdbg.x_raw, (int)cdbg.y_raw,
+                         (int)cdbg.x_min, (int)cdbg.x_max,
+                         (int)cdbg.y_min, (int)cdbg.y_max,
+                         dx, dy, cdbg.calibrated ? 1 : 0, cal_quality);
+            } else {
+                ESP_LOGI(TAG,
+                         "GPS valid=%d fix=%d sats=%d hdop=%.1f lat=%.6f lon=%.6f | uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f deg",
+                         fix.valid, fix.fix_quality, fix.satellites, fix.hdop,
+                         fix.lat_deg, fix.lon_deg,
+                         (unsigned long)rx_per_sec, (unsigned long)st.gga_parsed_count,
+                         ctype, compass_ok ? "OK" : "WAIT", heading);
+            }
             last_log = now;
         }
 
@@ -59,6 +79,8 @@ void app_main(void)
     if (cerr != ESP_OK) {
         ESP_LOGW(TAG, "Compass init failed (%s) — GPS-only; check SDA/SCL and module I2C address",
                  esp_err_to_name(cerr));
+    } else {
+        compass_reset_calibration();
     }
 
     xTaskCreate(sensor_task, "sensor", 4096, NULL, 5, NULL);

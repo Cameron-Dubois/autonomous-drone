@@ -14,6 +14,7 @@ static gps_fix_t s_fix;
 static uint32_t s_rx_bytes_total;
 static uint32_t s_gga_parsed_count;
 static bool s_logged_first_rx_preview;
+static uint32_t s_gga_raw_log_mod = 50;
 
 static void log_rx_preview_once(const uint8_t *buf, int len)
 {
@@ -135,8 +136,16 @@ void gps_uart_poll(void)
             if (idx > 6) {
                 line[idx] = '\0';
                 if (strncmp(line, "$GNGGA", 6) == 0 || strncmp(line, "$GPGGA", 6) == 0) {
+                    char gga_raw[sizeof(line)];
+                    strncpy(gga_raw, line, sizeof(gga_raw) - 1);
+                    gga_raw[sizeof(gga_raw) - 1] = '\0';
+
                     parse_gga(line);
                     s_gga_parsed_count++;
+                    if (s_gga_raw_log_mod > 0 && (s_gga_parsed_count % s_gga_raw_log_mod) == 0) {
+                        ESP_LOGI(TAG, "Raw GGA #%lu: %s",
+                                 (unsigned long)s_gga_parsed_count, gga_raw);
+                    }
                 }
             }
             idx = 0;
