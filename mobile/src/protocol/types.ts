@@ -100,6 +100,8 @@ export type Telemetry = {
   droneGpsSatellites: number;
   /** HDOP from fix; null when unknown */
   droneGpsHdop: number | null;
+  /** Drone-reported heading in degrees [0,360); semantics (true vs magnetic) defined by firmware. null when unknown. */
+  droneHeadingDeg: number | null;
 };
 
 /** Initial / disconnected telemetry; use everywhere a full `Telemetry` object is required. */
@@ -118,5 +120,6 @@ export function createDefaultTelemetry(): Telemetry {
     droneGpsFixQuality: 0,
     droneGpsSatellites: 0,
     droneGpsHdop: null,
+    droneHeadingDeg: null,
   };
 }

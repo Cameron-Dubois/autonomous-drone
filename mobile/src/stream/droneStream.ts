@@ -7,12 +7,21 @@ export const DRONE_STREAM_PATH = "/stream";
 const DRONE_HTTP_SCHEME = "http";
 const DRONE_HTTP_PORT = 80;
 
+/** WebSocket endpoint for telemetry (in) and commands (out). Confirm path/port with firmware. */
+export const DRONE_WS_PATH = "/ws";
+export const DRONE_WS_PORT = 81;
+const DRONE_WS_SCHEME = "ws";
+
 export function buildDroneRootUrl(): string {
   return `${DRONE_HTTP_SCHEME}://${DRONE_AP_HOST}/`;
 }
 
 export function buildDroneStreamUrl(): string {
   return `${DRONE_HTTP_SCHEME}://${DRONE_AP_HOST}${DRONE_STREAM_PATH}`;
+}
+
+export function buildDroneWsUrl(): string {
+  return `${DRONE_WS_SCHEME}://${DRONE_AP_HOST}:${DRONE_WS_PORT}${DRONE_WS_PATH}`;
 }
 
 /**
