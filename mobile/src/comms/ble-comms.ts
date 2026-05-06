@@ -53,6 +53,14 @@ export function createBleComms(): DroneComms {
     }
   };
 
+  const sendBytes = async (bytes: Uint8Array): Promise<void> => {
+    const client = getBleClient();
+    if (!client.getConnectedDeviceId()) {
+      return;
+    }
+    await client.sendCommand(bytes);
+  };
+
   return {
     async connect(deviceId?: string): Promise<void> {
       const client = getBleClient();
@@ -80,13 +88,10 @@ export function createBleComms(): DroneComms {
     },
 
     async send(cmd: Command): Promise<void> {
-      const client = getBleClient();
-      if (!client.getConnectedDeviceId()) {
-        return;
-      }
-      const bytes = buildCommandBytes(cmd);
-      await client.sendCommand(bytes);
+      await sendBytes(buildCommandBytes(cmd));
     },
+
+    sendBytes,
 
     subscribeTelemetry(cb: (t: Telemetry) => void): () => void {
       listeners.add(cb);

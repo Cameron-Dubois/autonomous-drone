@@ -144,13 +144,11 @@ export default function Control() {
 
     const sendMotor = useCallback(async (motorCmd: number, throttle: number) => {
         try {
-            const { getBleClient } = await import("../../../src/comms/BLE");
-            const client = getBleClient();
-            await client.sendCommand(buildRawCommandBytes(motorCmd, [throttle]));
+            await comms.sendBytes(buildRawCommandBytes(motorCmd, [throttle]));
         } catch (e) {
-            console.log("BLE send failed:", e);
+            console.log("Motor send failed:", e);
         }
-    }, []);
+    }, [comms]);
 
     const sendMotors = useCallback(async (motorCmds: number[], throttle: number) => {
         for (const m of motorCmds) {
@@ -161,9 +159,7 @@ export default function Control() {
     const handleDPadPress = useCallback(async (dir: Direction) => {
         try {
             if (dir === "CENTER") {
-                const { getBleClient } = await import("../../../src/comms/BLE");
-                const client = getBleClient();
-                await client.sendCommand(buildRawCommandBytes(DroneCmd.ARM));
+                await comms.sendBytes(buildRawCommandBytes(DroneCmd.ARM));
                 return;
             }
             const motors = DIR_TO_MOTORS[dir];
@@ -178,9 +174,9 @@ export default function Control() {
                 await sendMotor(cmd, percentToThrottle(next[idx]));
             }
         } catch (e) {
-            console.log("BLE send failed:", e);
+            console.log("Command send failed:", e);
         }
-    }, [motorPercents, sendMotor]);
+    }, [comms, motorPercents, sendMotor]);
 
     const handleTakeoff = useCallback(async () => {
         // Clear any existing takeoff ramp

@@ -47,8 +47,8 @@ Today, **`firmware-command-mapper.ts`** is intentionally empty: the nav module o
 
 1. **Define the command contract** — e.g. setpoint mode (position hold, velocity toward waypoint), max speed, altitude policy, and failsafe when `WEAK_PHONE_GPS` or stale fixes.
 2. **Map intents to FC behavior** — e.g. `PROCEED_TOWARD_PHONE` → guided mode toward (phone lat/lon); `ARRIVED_OR_WITHIN_RADIUS` → loiter or land per product decision; `HOLD` / missing drone fix → explicit hold or disallow arming.
-3. **Implement `firmware-command-mapper.ts` (or a sibling module)** — input: `NavigationSnapshot` (+ maybe UI toggles); output: packets your BLE/SDK stack sends to the drone. **Do not** put flight-critical safety only on the phone; mirror or enforce limits on the FC.
-4. **`WifiTelemetryDroneProviderStub`** — replace with a real provider once host/port and message format are fixed; same **`DronePositionProvider`** interface applies.
+3. **Implement `firmware-command-mapper.ts` (or a sibling module)** — input: `NavigationSnapshot` (+ maybe UI toggles); output: packets your WiFi/BLE stack sends to the drone. **Do not** put flight-critical safety only on the phone; mirror or enforce limits on the FC.
+4. **WiFi telemetry source** — `mobile/src/comms/wifi-comms.ts` opens a WebSocket to the drone, parses telemetry text frames, and feeds the same `Telemetry` shape that `TelemetryDroneProvider` consumes. Wire it via `TelemetryDroneProvider(comms)` where `comms` comes from `useComms()`.
 
 ## File map
 

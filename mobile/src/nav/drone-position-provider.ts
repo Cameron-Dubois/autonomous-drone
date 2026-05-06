@@ -45,13 +45,14 @@ export type TelemetryWithDroneGps = {
   droneLat: number | null;
   droneLon: number | null;
   droneGpsValid?: boolean;
+  droneHeadingDeg?: number | null;
 };
 
 export type TelemetrySource<T extends TelemetryWithDroneGps> = {
   subscribeTelemetry(cb: (t: T) => void): () => void;
 };
 
-//wraps BLE or similar telemetry; keeps nav free of protocol imports
+//wraps the WiFi (or any) telemetry source; keeps nav free of protocol imports
 export class TelemetryDroneProvider<T extends TelemetryWithDroneGps> implements DronePositionProvider {
   constructor(
     private readonly source: TelemetrySource<T>,
@@ -62,20 +63,16 @@ export class TelemetryDroneProvider<T extends TelemetryWithDroneGps> implements 
     return this.source.subscribeTelemetry((t) => {
       if (t.droneGpsValid === false) return cb(null);
       if (t.droneLat == null || t.droneLon == null) return cb(null);
+      const courseDeg =
+        typeof t.droneHeadingDeg === "number" && Number.isFinite(t.droneHeadingDeg)
+          ? t.droneHeadingDeg
+          : null;
       cb({
         lat: t.droneLat,
         lon: t.droneLon,
         timestampMs: this.clock(),
+        courseDeg,
       });
     });
-  }
-}
-
-//not wired yet, throws on subscribe so we notice unfinished work
-export class WifiTelemetryDroneProviderStub implements DronePositionProvider {
-  subscribe(_cb: DroneFixCallback): DroneProviderUnsubscribe {
-    throw new Error(
-      "WifiTelemetryDroneProvider is a stub: agree on host/port and JSON/TEL grammar with the drone team before enabling."
-    );
   }
 }

@@ -81,4 +81,29 @@ describe("parseBleTelemetryPayload GPS", () => {
     expect(p.droneLon).toBe(-100);
     expect(p.droneGpsValid).toBe(true);
   });
+
+  it("parses canonical JSON heading", () => {
+    const p = parseBleTelemetryPayload(JSON.stringify({ droneHeadingDeg: 123.4 }), link);
+    expect(p.droneHeadingDeg).toBeCloseTo(123.4);
+  });
+
+  it("parses heading aliases (heading/hdg/course/yaw) and wraps into [0,360)", () => {
+    expect(parseBleTelemetryPayload(JSON.stringify({ heading: 45 }), link).droneHeadingDeg).toBe(45);
+    expect(parseBleTelemetryPayload(JSON.stringify({ hdg: 359.9 }), link).droneHeadingDeg).toBeCloseTo(359.9);
+    expect(parseBleTelemetryPayload(JSON.stringify({ course: 360 }), link).droneHeadingDeg).toBe(0);
+    expect(parseBleTelemetryPayload(JSON.stringify({ yaw: -10 }), link).droneHeadingDeg).toBe(350);
+    expect(parseBleTelemetryPayload(JSON.stringify({ heading: 720 }), link).droneHeadingDeg).toBe(0);
+  });
+
+  it("JSON null clears heading", () => {
+    const p = parseBleTelemetryPayload(JSON.stringify({ droneHeadingDeg: null }), link);
+    expect(p.droneHeadingDeg).toBeNull();
+  });
+
+  it("parses TEL heading tokens", () => {
+    expect(parseBleTelemetryPayload("TEL heading=90", link).droneHeadingDeg).toBe(90);
+    expect(parseBleTelemetryPayload("TEL hdg=185.5", link).droneHeadingDeg).toBeCloseTo(185.5);
+    expect(parseBleTelemetryPayload("TEL course=-5", link).droneHeadingDeg).toBe(355);
+    expect(parseBleTelemetryPayload("TEL yaw=400", link).droneHeadingDeg).toBe(40);
+  });
 });

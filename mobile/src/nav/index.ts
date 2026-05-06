@@ -27,7 +27,6 @@ export {
   NullDroneProvider,
   SyntheticDroneProvider,
   TelemetryDroneProvider,
-  WifiTelemetryDroneProviderStub,
 } from "./drone-position-provider";
 export type {
   DroneFixCallback,

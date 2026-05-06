@@ -55,6 +55,25 @@ function applyJsonGeo(data: Record<string, unknown>, result: Partial<Telemetry>)
 
   const hdop = pickOptionalHdop(data, ["droneGpsHdop", "hdop"]);
   if (hdop !== undefined) result.droneGpsHdop = hdop;
+
+  const heading = pickOptionalHeading(data, ["droneHeadingDeg", "heading", "hdg", "course", "yaw"]);
+  if (heading !== undefined) result.droneHeadingDeg = heading;
+}
+
+/** Normalize any finite heading-like number into [0, 360). Returns null for explicit null, undefined to omit. */
+function pickOptionalHeading(data: Record<string, unknown>, keys: string[]): number | null | undefined {
+  for (const k of keys) {
+    if (!Object.prototype.hasOwnProperty.call(data, k)) continue;
+    const v = data[k];
+    if (v === null) return null;
+    if (typeof v === "number" && Number.isFinite(v)) return normalizeHeadingDeg(v);
+  }
+  return undefined;
+}
+
+function normalizeHeadingDeg(deg: number): number {
+  const wrapped = ((deg % 360) + 360) % 360;
+  return wrapped;
 }
 
 /** number | null = explicit value; undefined = omit from patch */
@@ -148,6 +167,12 @@ function parseTel(trimmed: string, result: Partial<Telemetry>): Partial<Telemetr
         break;
       case "hdop":
         if (!isNaN(vFloat)) result.droneGpsHdop = vFloat;
+        break;
+      case "heading":
+      case "hdg":
+      case "course":
+      case "yaw":
+        if (!isNaN(vFloat)) result.droneHeadingDeg = normalizeHeadingDeg(vFloat);
         break;
       default:
         break;
