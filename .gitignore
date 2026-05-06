@@ -104,3 +104,5 @@ sdkconfig.old
 # OS
 .DS_Store
 Thumbs.db
+
+LiteWing/
