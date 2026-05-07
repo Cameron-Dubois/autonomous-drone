@@ -1,0 +1,18 @@
+idf_component_register(
+    SRCS
+        "softap_gps_main.c"
+        "../../gps_bringup/main/gps_nmea.c"
+        "../../gps_bringup/main/compass_mag.c"
+    PRIV_REQUIRES
+        esp_wifi
+        nvs_flash
+        esp_http_server
+        esp_driver_gpio
+        esp_driver_uart
+        esp_driver_i2c
+        freertos
+        log
+    INCLUDE_DIRS
+        "."
+        "../../gps_bringup/main"
+)

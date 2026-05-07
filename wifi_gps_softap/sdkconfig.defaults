@@ -1,0 +1,2 @@
+# WebSocket server API (second HTTP server on port 81, /ws)
+CONFIG_HTTPD_WS_SUPPORT=y
