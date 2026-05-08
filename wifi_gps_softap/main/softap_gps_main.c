@@ -1,7 +1,7 @@
 /*
- * Merged firmware: Wi-Fi SoftAP + HTTP (port 80) + WebSocket telemetry (port 81).
+ * Merged firmware: Wi-Fi SoftAP + HTTPS (port 443) + secure WebSocket telemetry.
  * JSON lines match mobile parseBleTelemetryPayload: droneLat, droneLon, droneGpsValid,
- * droneHeadingDeg, etc. See mobile/src/stream/droneStream.ts (ws://192.168.4.1:81/ws).
+ * droneHeadingDeg, etc. TLS uses an embedded self-signed certificate.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +13,7 @@
 
 #include "esp_event.h"
 #include "esp_http_server.h"
+#include "esp_https_server.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_wifi.h"
@@ -31,7 +32,11 @@
 static const char *TAG = "wifi_gps";
 
 static httpd_handle_t s_httpd = NULL;
-static httpd_handle_t s_ws_httpd = NULL;
+
+extern const unsigned char servercert_pem_start[] asm("_binary_servercert_pem_start");
+extern const unsigned char servercert_pem_end[] asm("_binary_servercert_pem_end");
+extern const unsigned char prvkey_pem_start[] asm("_binary_prvkey_pem_start");
+extern const unsigned char prvkey_pem_end[] asm("_binary_prvkey_pem_end");
 
 /** Active WebSocket client (last connect wins). Protected by s_ws_fd_mux. */
 static int s_ws_client_fd = -1;
@@ -112,41 +117,9 @@ static esp_err_t ws_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-static void start_ws_server(void)
-{
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = 81;
-    /* Each httpd instance needs its own UDP ctrl socket port; default is ESP_HTTPD_DEF_CTRL_PORT. */
-    config.ctrl_port = ESP_HTTPD_DEF_CTRL_PORT + 1;
-    config.send_wait_timeout = 30;
-    config.recv_wait_timeout = 30;
-
-    if (httpd_start(&s_ws_httpd, &config) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start WebSocket HTTP server on :81");
-        return;
-    }
-
-    httpd_uri_t ws = {
-        .uri = "/ws",
-        .method = HTTP_GET,
-        .handler = ws_handler,
-        .user_ctx = NULL,
-        .is_websocket = true,
-    };
-
-    if (httpd_register_uri_handler(s_ws_httpd, &ws) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to register /ws");
-        httpd_stop(s_ws_httpd);
-        s_ws_httpd = NULL;
-        return;
-    }
-
-    ESP_LOGI(TAG, "WebSocket ws://192.168.4.1:81/ws");
-}
-
 static void ws_push_telemetry(const gps_fix_t *fix, bool compass_ok, float heading_deg)
 {
-    if (!s_ws_httpd) {
+    if (!s_httpd) {
         return;
     }
 
@@ -155,7 +128,7 @@ static void ws_push_telemetry(const gps_fix_t *fix, bool compass_ok, float headi
         return;
     }
 
-    if (httpd_ws_get_fd_info(s_ws_httpd, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
+    if (httpd_ws_get_fd_info(s_httpd, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
         ws_fd_set(-1);
         return;
     }
@@ -196,7 +169,7 @@ static void ws_push_telemetry(const gps_fix_t *fix, bool compass_ok, float headi
         .len = (size_t)n,
     };
 
-    esp_err_t err = httpd_ws_send_data(s_ws_httpd, fd, &out);
+    esp_err_t err = httpd_ws_send_data(s_httpd, fd, &out);
     if (err != ESP_OK) {
         ESP_LOGD(TAG, "ws telemetry send: %s", esp_err_to_name(err));
         ws_fd_set(-1);
@@ -343,15 +316,21 @@ static void wifi_init_softap(void)
     ESP_LOGI(TAG, "SoftAP SSID:%s channel:%d", EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_CHANNEL);
 }
 
-static void start_http_server(void)
+static void start_https_server(void)
 {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    config.server_port = 80;
-    config.send_wait_timeout = 30;
-    config.recv_wait_timeout = 10;
+    httpd_ssl_config_t ssl_config = HTTPD_SSL_CONFIG_DEFAULT();
+    ssl_config.httpd.send_wait_timeout = 30;
+    ssl_config.httpd.recv_wait_timeout = 10;
+    ssl_config.httpd.lru_purge_enable = true;
+    ssl_config.port_secure = 443;
+    ssl_config.transport_mode = HTTPD_SSL_TRANSPORT_SECURE;
+    ssl_config.servercert = servercert_pem_start;
+    ssl_config.servercert_len = (size_t)(servercert_pem_end - servercert_pem_start);
+    ssl_config.prvtkey_pem = prvkey_pem_start;
+    ssl_config.prvtkey_len = (size_t)(prvkey_pem_end - prvkey_pem_start);
 
-    if (httpd_start(&s_httpd, &config) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to start HTTP server");
+    if (httpd_ssl_start(&s_httpd, &ssl_config) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start HTTPS server on :443");
         return;
     }
 
@@ -373,17 +352,26 @@ static void start_http_server(void)
         .handler = gps_json_handler,
         .user_ctx = NULL,
     };
+    httpd_uri_t ws = {
+        .uri = "/ws",
+        .method = HTTP_GET,
+        .handler = ws_handler,
+        .user_ctx = NULL,
+        .is_websocket = true,
+    };
 
     if (httpd_register_uri_handler(s_httpd, &root) != ESP_OK ||
         httpd_register_uri_handler(s_httpd, &stream) != ESP_OK ||
-        httpd_register_uri_handler(s_httpd, &gps_json) != ESP_OK) {
+        httpd_register_uri_handler(s_httpd, &gps_json) != ESP_OK ||
+        httpd_register_uri_handler(s_httpd, &ws) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to register URI handlers");
-        httpd_stop(s_httpd);
+        httpd_ssl_stop(s_httpd);
         s_httpd = NULL;
         return;
     }
 
-    ESP_LOGI(TAG, "HTTP http://192.168.4.1/  /stream  /gps (JSON)");
+    ESP_LOGI(TAG, "HTTPS https://192.168.4.1/  /stream  /gps (JSON)");
+    ESP_LOGI(TAG, "Secure WebSocket wss://192.168.4.1/ws");
 }
 
 static void sensor_task(void *arg)
@@ -472,11 +460,10 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    ESP_LOGI(TAG, "SoftAP + GPS + compass + WebSocket telemetry");
+    ESP_LOGI(TAG, "SoftAP + GPS + compass + TLS WebSocket telemetry");
 
     wifi_init_softap();
-    start_http_server();
-    start_ws_server();
+    start_https_server();
 
     gps_uart_init();
     esp_err_t cerr = compass_init();

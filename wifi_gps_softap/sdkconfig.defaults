@@ -1,2 +1,2 @@
-# WebSocket server API (second HTTP server on port 81, /ws)
+# Enable WebSocket support for secure /ws handler on HTTPS server
 CONFIG_HTTPD_WS_SUPPORT=y

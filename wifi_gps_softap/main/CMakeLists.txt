@@ -7,6 +7,7 @@ idf_component_register(
         esp_wifi
         nvs_flash
         esp_http_server
+        esp_https_server
         esp_driver_gpio
         esp_driver_uart
         esp_driver_i2c
@@ -15,4 +16,7 @@ idf_component_register(
     INCLUDE_DIRS
         "."
         "../../gps_bringup/main"
+    EMBED_TXTFILES
+        "certs/servercert.pem"
+        "certs/prvkey.pem"
 )
