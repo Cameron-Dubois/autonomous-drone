@@ -1,0 +1,21 @@
+idf_component_register(
+    SRCS
+        "app_main.c"
+        "imu.c"
+        "attitude.c"
+        "motors.c"
+        "pid.c"
+        "mixer.c"
+        "wifi_link.c"
+        "flight_task.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        driver
+        esp_wifi
+        esp_netif
+        esp_event
+        nvs_flash
+        lwip
+        esp_timer
+)
