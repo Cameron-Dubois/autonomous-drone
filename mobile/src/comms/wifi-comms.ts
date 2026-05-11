@@ -37,7 +37,7 @@ function splitTelemetryLines(text: string): string[] {
 }
 
 export type WifiCommsOptions = {
-  /** Override the auto-built `ws://192.168.4.1:81/ws` URL (e.g. for a sim). */
+  /** Override the auto-built `wss://192.168.4.1/ws` URL (e.g. for a sim). */
   url?: string;
 };
 

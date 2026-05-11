@@ -17,7 +17,8 @@
         "NSLocalNetworkUsageDescription": "Aero Drone App needs local network access to connect to your drone's WiFi for video streaming.",
         "NSLocationWhenInUseUsageDescription": "Show your phone’s position alongside drone telemetry, and Wi‑Fi scans for drone connection.",
         "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
+          "NSAllowsLocalNetworking": true,
+          "NSAllowsArbitraryLoads": true
         }
       }
     },
@@ -41,7 +42,8 @@
           "bluetoothAlwaysPermission": "Allow Aero Drone App to connect to your drone via Bluetooth."
         }
       ],
-      "react-native-wifi-reborn"
+      "react-native-wifi-reborn",
+      "./plugins/withDroneWifiTlsAndroid.js"
     ],
     "extra": {
       "eas": {
