@@ -19,6 +19,7 @@ import * as Location from "expo-location";
 import { getBleClient, setStoredDeviceId, type BleDeviceSummary } from "../../../src/comms/BLE";
 import { spacing, fontSizes, radii, tabBarHeight } from "../../../src/theme/layout";
 import { getWifiClient, type WifiNetworkSummary } from "../../../src/comms/WiFi";
+import { isHybridComms } from "../../../src/comms/hybrid-comms";
 import { useComms } from "../../../src/context/CommsContext";
 
 const SCAN_TIMEOUT_MS = 5000;
@@ -116,11 +117,14 @@ export default function Connect() {
       await client.connect(deviceId);
       setStoredDeviceId(deviceId);
       setBluetoothStatus("connected");
+      if (isHybridComms(comms)) {
+        comms.syncBleFromExternalConnection();
+      }
     } catch (e) {
       setBleError(e instanceof Error ? e.message : "Connection failed");
       Alert.alert("Connection failed", e instanceof Error ? e.message : "Could not connect to device.");
     }
-  }, []);
+  }, [comms]);
 
   const handleDisconnect = useCallback(async () => {
     setBleError(null);
@@ -128,10 +132,13 @@ export default function Connect() {
       const client = getBleClient();
       await client.disconnect();
       setBluetoothStatus("disconnected");
+      if (isHybridComms(comms)) {
+        comms.syncBleFromExternalConnection();
+      }
     } catch (e) {
       setBleError(e instanceof Error ? e.message : "Disconnect failed");
     }
-  }, []);
+  }, [comms]);
 
   const handleWifiScan = useCallback(async () => {
     setWifiError(null);
