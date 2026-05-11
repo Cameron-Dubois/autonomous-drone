@@ -6,7 +6,7 @@ This section documents the telemetry data schema and how GPS information is coll
 
 #### Telemetry data schema
 
-The mobile app maintains a single `Telemetry` object that is updated whenever a BLE notification arrives from the drone, or when using the Wi‑Fi adapter (`createWifiComms`) from each inbound WebSocket text frame. The type is defined in `mobile/src/protocol/types.ts`.
+The mobile app maintains a single `Telemetry` object that is updated whenever a BLE notification arrives from the drone. The type is defined in `mobile/src/protocol/types.ts`.
 
 | Field | Type | Source | Description |
 |-------|------|--------|-------------|
