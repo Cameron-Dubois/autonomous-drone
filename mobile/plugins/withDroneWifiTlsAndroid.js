@@ -31,18 +31,25 @@ function withDroneWifiTlsAndroid(config) {
       if (!fs.existsSync(certSrc)) {
         throw new Error(`Missing TLS cert for Android trust: ${certSrc}`);
       }
-      fs.copyFileSync(certSrc, certDst);
+      const pem = fs.readFileSync(certSrc, "utf8");
+      fs.writeFileSync(certDst, pem.replace(/\r\n/g, "\n").trim() + "\n");
 
       const xmlPath = path.join(xmlDir, "network_security_config.xml");
       fs.writeFileSync(
         xmlPath,
         `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+  <!-- Expo dev client / Metro uses cleartext HTTP to the bundler host (LAN IP). -->
+  <base-config cleartextTrafficPermitted="true">
+    <trust-anchors>
+      <certificates src="system" />
+    </trust-anchors>
+  </base-config>
   <domain-config cleartextTrafficPermitted="false">
     <domain includeSubdomains="false">192.168.4.1</domain>
     <trust-anchors>
       <certificates src="@raw/drone_ap_server_cert"/>
-      <certificates src="system"/>
+      <certificates src="system" />
     </trust-anchors>
   </domain-config>
 </network-security-config>

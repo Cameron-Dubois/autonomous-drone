@@ -56,7 +56,7 @@ afterEach(() => {
 
 describe("createWifiComms", () => {
   it("opens a WebSocket on connect, becomes SECURE_LINK on open, parses telemetry text frames", async () => {
-    const comms = createWifiComms({ url: "ws://test/ws" });
+    const comms = createWifiComms({ url: "ws://test/ws", enableHttpGpsFallback: false });
     const seen: string[] = [];
     comms.subscribeTelemetry((t) => seen.push(t.link));
 
@@ -79,7 +79,7 @@ describe("createWifiComms", () => {
   });
 
   it("splits multi-line text frames and parses each line independently", async () => {
-    const comms = createWifiComms({ url: "ws://test/ws" });
+    const comms = createWifiComms({ url: "ws://test/ws", enableHttpGpsFallback: false });
     const seen: any[] = [];
     comms.subscribeTelemetry((t) => seen.push(t));
 
@@ -98,7 +98,7 @@ describe("createWifiComms", () => {
   });
 
   it("sendBytes writes a binary frame containing the command packet", async () => {
-    const comms = createWifiComms({ url: "ws://test/ws" });
+    const comms = createWifiComms({ url: "ws://test/ws", enableHttpGpsFallback: false });
     await comms.connect();
     const ws = MockWebSocket.instances[0];
     ws.emitOpen();
@@ -115,7 +115,7 @@ describe("createWifiComms", () => {
   });
 
   it("send(cmd) routes through sendBytes", async () => {
-    const comms = createWifiComms({ url: "ws://test/ws" });
+    const comms = createWifiComms({ url: "ws://test/ws", enableHttpGpsFallback: false });
     await comms.connect();
     const ws = MockWebSocket.instances[0];
     ws.emitOpen();
@@ -129,7 +129,7 @@ describe("createWifiComms", () => {
   });
 
   it("drops sendBytes silently when not OPEN", async () => {
-    const comms = createWifiComms({ url: "ws://test/ws" });
+    const comms = createWifiComms({ url: "ws://test/ws", enableHttpGpsFallback: false });
     await comms.connect();
     const ws = MockWebSocket.instances[0];
     // do not emit open
@@ -138,7 +138,7 @@ describe("createWifiComms", () => {
   });
 
   it("schedules reconnect after unintentional close", async () => {
-    const comms = createWifiComms({ url: "ws://test/ws" });
+    const comms = createWifiComms({ url: "ws://test/ws", enableHttpGpsFallback: false });
     await comms.connect();
     MockWebSocket.instances[0].emitOpen();
     MockWebSocket.instances[0].emitClose();
@@ -148,7 +148,7 @@ describe("createWifiComms", () => {
   });
 
   it("disconnect() suppresses reconnect", async () => {
-    const comms = createWifiComms({ url: "ws://test/ws" });
+    const comms = createWifiComms({ url: "ws://test/ws", enableHttpGpsFallback: false });
     await comms.connect();
     MockWebSocket.instances[0].emitOpen();
     await comms.disconnect();

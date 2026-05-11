@@ -19,6 +19,9 @@ export default function HomeScreen() {
 
     const barActive = (i: number) => tel.rssiBars >= i;
 
+    const droneGpsReady =
+        tel.droneGpsValid && tel.droneLat != null && tel.droneLon != null;
+
     return (
         <View style={styles.root}>
             <ScrollView
@@ -84,6 +87,34 @@ export default function HomeScreen() {
                                           (phoneLoc.permission === "granted" ? "Waiting for fix…" : "Location unavailable")}
                                 </Text>
                             </>
+                        )}
+                    </View>
+
+                    <View style={styles.droneSection}>
+                        <Text style={styles.label}>DRONE (GPS)</Text>
+                        {droneGpsReady ? (
+                            <>
+                                <Text style={[styles.mono, styles.phoneCoords, styles.teal]}>
+                                    {tel.droneLat!.toFixed(6)}°, {tel.droneLon!.toFixed(6)}°
+                                </Text>
+                                <Text style={styles.phoneSub}>
+                                    {tel.droneGpsSatellites} sats · fix Q {tel.droneGpsFixQuality}
+                                    {tel.droneGpsHdop != null ? ` · HDOP ${tel.droneGpsHdop.toFixed(1)}` : ""}
+                                    {typeof tel.droneHeadingDeg === "number" && Number.isFinite(tel.droneHeadingDeg)
+                                        ? ` · hdg ${Math.round(tel.droneHeadingDeg)}°`
+                                        : ""}
+                                    {tel.link !== "SECURE_LINK" ? " · via HTTPS /gps (WS not up)" : ""}
+                                </Text>
+                            </>
+                        ) : tel.link === "SECURE_LINK" ? (
+                            <Text style={styles.phoneMuted}>
+                                Telemetry link OK — waiting for a GPS fix from the drone…
+                            </Text>
+                        ) : (
+                            <Text style={styles.phoneMuted}>
+                                Join the drone Wi‑Fi (Connect tab). Link: {tel.link}. When WS is down, the app still
+                                polls HTTPS /gps every 2s if TLS trust is configured.
+                            </Text>
                         )}
                     </View>
 
@@ -158,6 +189,7 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         justifyContent: "space-between",
     },
     phoneSection: { marginTop: spacing.xxl },
+    droneSection: { marginTop: spacing.xl },
     phoneCoords: { fontVariant: ["tabular-nums"] },
     phoneSub: {
         marginTop: 6,

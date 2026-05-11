@@ -1,8 +1,9 @@
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 import type {
   WifiNetworkSummary,
   WifiScanOptions,
   DroneWifiClient,
+  WifiDisconnectResult,
 } from "./types";
 
 // Lazy import to avoid loading in Expo Go when native module isn't available
@@ -45,9 +46,34 @@ function levelToStrength(level: number): number {
 
 export class RealDroneWifiClient implements DroneWifiClient {
   private _cachedSsid: string | null = null;
+  /** Android: from native `connectionStatus()` (SSID can still be null while this is true). */
+  private _androidWifiAssociated = false;
+
+  isWifiAssociated(): boolean {
+    if (Platform.OS === "android") {
+      return this._androidWifiAssociated || this._cachedSsid != null;
+    }
+    return this._cachedSsid != null;
+  }
 
   async refreshConnectionStatus(): Promise<void> {
-    this._cachedSsid = await this.getCurrentNetwork();
+    if (Platform.OS === "android") {
+      const mgr = getWifiManager();
+      try {
+        this._androidWifiAssociated = await mgr.connectionStatus();
+      } catch {
+        this._androidWifiAssociated = false;
+      }
+      if (!this._androidWifiAssociated) {
+        this._cachedSsid = null;
+        return;
+      }
+      this._cachedSsid = await this.getCurrentNetwork().catch(() => null);
+      return;
+    }
+
+    this._androidWifiAssociated = false;
+    this._cachedSsid = await this.getCurrentNetwork().catch(() => null);
   }
 
   async scan(options?: WifiScanOptions): Promise<WifiNetworkSummary[]> {
@@ -104,13 +130,95 @@ export class RealDroneWifiClient implements DroneWifiClient {
     await this.refreshConnectionStatus();
   }
 
-  async disconnect(): Promise<void> {
-    if (Platform.OS === "ios") {
-      throw new Error("WiFi disconnect is not supported on iOS. Use Settings to disconnect.");
-    }
+  async disconnect(): Promise<WifiDisconnectResult> {
     const mgr = getWifiManager();
-    await mgr.disconnect();
+    const ssid = this._cachedSsid;
+
+    if (Platform.OS === "ios") {
+      const target = ssid ?? (await this.getCurrentNetwork().catch(() => null));
+      if (target) {
+        try {
+          await (mgr as { disconnectFromSSID: (p: string) => Promise<void> }).disconnectFromSSID(
+            target
+          );
+        } catch (e) {
+          return {
+            disconnected: false,
+            reason: "error",
+            message: e instanceof Error ? e.message : "iOS disconnect failed",
+          };
+        }
+      }
+      this._cachedSsid = null;
+      this._androidWifiAssociated = false;
+      return { disconnected: true };
+    }
+
+    // Android 10+: only networks this app joined via `WifiNetworkSpecifier` can be torn down here.
+    // System-managed networks (joined from Settings) cannot be disconnected by an app.
+    try {
+      await mgr.forceWifiUsageWithOptions(false, { noInternet: false });
+    } catch {
+      try {
+        await mgr.forceWifiUsage(false);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let nativeError: string | null = null;
+    try {
+      await mgr.disconnect();
+    } catch (e) {
+      nativeError = e instanceof Error ? e.message : String(e);
+    }
+
+    if (ssid) {
+      try {
+        await mgr.isRemoveWifiNetwork(ssid);
+      } catch {
+        /* non-fatal */
+      }
+    }
+
+    // Verify: if the OS still reports an association, the app does not own this network.
+    let stillAssociated = false;
+    try {
+      stillAssociated = await mgr.connectionStatus();
+    } catch {
+      stillAssociated = false;
+    }
+
+    if (stillAssociated) {
+      this._androidWifiAssociated = true;
+      this._cachedSsid = await this.getCurrentNetwork().catch(() => null);
+      return {
+        disconnected: false,
+        reason: "systemManaged",
+        message:
+          nativeError ??
+          "Android only lets apps disconnect networks they joined themselves. Use the Wi‑Fi panel to disconnect this network.",
+      };
+    }
+
     this._cachedSsid = null;
+    this._androidWifiAssociated = false;
+    return { disconnected: true };
+  }
+
+  async openSystemWifiSettings(): Promise<void> {
+    if (Platform.OS === "android") {
+      const mgr = getWifiManager() as unknown as { openWifiSettings?: () => void };
+      try {
+        if (typeof mgr.openWifiSettings === "function") {
+          mgr.openWifiSettings();
+          return;
+        }
+      } catch {
+        /* fallback below */
+      }
+    }
+    await Linking.openSettings();
   }
 
   getConnectedNetworkId(): string | null {

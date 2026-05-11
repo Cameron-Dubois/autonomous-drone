@@ -25,9 +25,9 @@ export function buildDroneGpsUrl(): string {
   return `${DRONE_HTTPS_SCHEME}://${DRONE_AP_HOST}${DRONE_GPS_PATH}`;
 }
 
-/** wss:// host path only; port 443 is implicit (wifi_gps_softap). */
+/** Port 443 explicit — some Android stacks resolve `wss` + IP more reliably with it. */
 export function buildDroneWsUrl(): string {
-  return `${DRONE_WSS_SCHEME}://${DRONE_AP_HOST}${DRONE_WS_PATH}`;
+  return `${DRONE_WSS_SCHEME}://${DRONE_AP_HOST}:443${DRONE_WS_PATH}`;
 }
 
 /**
