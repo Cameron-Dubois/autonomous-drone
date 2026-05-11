@@ -1,0 +1,17 @@
+{
+  "code": {
+    "exts": [".cpp", ".h", ".c", ".tsx", ".ts", ".py"]
+  },
+  "doc": {
+    "exts": [".md", ".tex"],
+    "include": [
+      "documentation/markdown/",
+      "main.tex",
+      "need-goal.md",
+      "test-documentation.md",
+      "test-plan.md",
+      "Demo_Outline.md",
+      "test-documentation-pid-sim.md"
+    ]
+  }
+}
