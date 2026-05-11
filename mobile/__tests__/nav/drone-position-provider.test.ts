@@ -56,13 +56,13 @@ describe("DronePositionProvider implementations", () => {
     subscribers[0]?.({ droneLat: 1, droneLon: 1, droneGpsValid: false });
 
     expect(seen).toEqual([
-      { lat: 37, lon: -122, timestampMs: 42, courseDeg: null },
+      { lat: 37, lon: -122, timestampMs: 42, headingDeg: null, courseDeg: null },
       null,
       null,
     ]);
   });
 
-  it("TelemetryDroneProvider passes droneHeadingDeg through as courseDeg", () => {
+  it("TelemetryDroneProvider passes droneHeadingDeg through as headingDeg (compass)", () => {
     type T = TelemetryWithDroneGps;
     const subscribers: ((t: T) => void)[] = [];
     const source: TelemetrySource<T> = {
@@ -82,7 +82,19 @@ describe("DronePositionProvider implementations", () => {
     subscribers[0]?.({ droneLat: 10, droneLon: 20, droneGpsValid: true, droneHeadingDeg: 75 });
     subscribers[0]?.({ droneLat: 10, droneLon: 20, droneGpsValid: true, droneHeadingDeg: null });
 
-    expect(seen[seen.length - 2]).toEqual({ lat: 10, lon: 20, timestampMs: 100, courseDeg: 75 });
-    expect(seen[seen.length - 1]).toEqual({ lat: 10, lon: 20, timestampMs: 100, courseDeg: null });
+    expect(seen[seen.length - 2]).toEqual({
+      lat: 10,
+      lon: 20,
+      timestampMs: 100,
+      headingDeg: 75,
+      courseDeg: null,
+    });
+    expect(seen[seen.length - 1]).toEqual({
+      lat: 10,
+      lon: 20,
+      timestampMs: 100,
+      headingDeg: null,
+      courseDeg: null,
+    });
   });
 });
