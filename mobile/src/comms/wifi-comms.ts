@@ -19,6 +19,16 @@ import { buildDroneGpsUrl, buildDroneWsUrl } from "../stream/droneStream";
 const RECONNECT_INITIAL_MS = 500;
 const RECONNECT_MAX_MS = 8_000;
 const GPS_HTTP_POLL_MS = 2_000;
+const LOG = "[drone wifi]";
+
+function log(...args: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.log(LOG, ...args);
+}
+function warn(...args: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.warn(LOG, ...args);
+}
 
 function mergeTelemetry(prev: Telemetry, patch: Partial<Telemetry>): Telemetry {
   return { ...prev, ...patch };
@@ -71,7 +81,12 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
   };
 
   const handleIncomingText = (raw: string) => {
-    for (const line of splitTelemetryLines(raw)) {
+    const lines = splitTelemetryLines(raw);
+    if (lines.length > 0) {
+      const first = lines[0];
+      log("ws msg:", first.length > 120 ? first.slice(0, 120) + "…" : first);
+    }
+    for (const line of lines) {
       const patch = parseBleTelemetryPayload(line, "SECURE_LINK");
       emit(mergeTelemetry(lastTelemetry, patch));
     }
@@ -90,22 +105,29 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
     if (gpsPollTimer != null) {
       clearInterval(gpsPollTimer);
       gpsPollTimer = null;
+      log("gps poll stopped");
     }
   };
 
   const startGpsPoll = () => {
     if (!httpGpsFallback) return;
     clearGpsPoll();
+    const url = buildDroneGpsUrl();
+    log("gps poll started ->", url, `every ${GPS_HTTP_POLL_MS}ms`);
     gpsPollTimer = setInterval(() => {
       if (intentionallyClosed || lastTelemetry.link === "SECURE_LINK") return;
       void (async () => {
         try {
-          const res = await fetch(buildDroneGpsUrl(), { method: "GET" });
-          if (!res.ok) return;
+          const res = await fetch(url, { method: "GET" });
+          if (!res.ok) {
+            warn(`gps poll: HTTP ${res.status}`);
+            return;
+          }
           const text = await res.text();
+          log("gps poll ok:", text.length > 120 ? text.slice(0, 120) + "…" : text);
           mergeTelemetryTextWithoutLink(text);
-        } catch {
-          /* unreachable or TLS error */
+        } catch (e) {
+          warn("gps poll failed:", e instanceof Error ? e.message : String(e));
         }
       })();
     }, GPS_HTTP_POLL_MS);
@@ -146,11 +168,12 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
     setLink("CONNECTING");
 
     const url = options.url ?? buildDroneWsUrl();
+    log("ws connect ->", url);
     let ws: WebSocket;
     try {
       ws = new WebSocket(url);
     } catch (e) {
-      console.log("WiFi comms: WebSocket construction failed:", e);
+      warn("ws construction failed:", e instanceof Error ? e.message : String(e));
       setLink("DISCONNECTED");
       scheduleReconnect();
       return;
@@ -159,6 +182,7 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
 
     ws.onopen = () => {
       reconnectDelayMs = RECONNECT_INITIAL_MS;
+      log("ws open ->", url);
       setLink("SECURE_LINK");
     };
 
@@ -171,15 +195,17 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
       // ignore until firmware defines a binary telemetry encoding.
     };
 
-    ws.onerror = () => {
-      // onclose follows; let it handle the state transition.
+    ws.onerror = (event) => {
+      const msg =
+        (event as { message?: string }).message ??
+        ((event as { error?: { message?: string } }).error?.message ?? "unknown");
+      warn("ws error:", msg);
     };
 
     ws.onclose = (ev) => {
+      const code = (ev as { code?: number }).code;
       const reason = typeof (ev as { reason?: string }).reason === "string" ? (ev as { reason: string }).reason : "";
-      if (reason) {
-        console.warn("[drone wss] closed:", reason);
-      }
+      warn(`ws close code=${code ?? "?"} reason="${reason}"`);
       socket = null;
       setLink("DISCONNECTED");
       scheduleReconnect();
@@ -197,6 +223,7 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
 
   return {
     async connect(_deviceId?: string): Promise<void> {
+      log("connect() called");
       intentionallyClosed = false;
       reconnectDelayMs = RECONNECT_INITIAL_MS;
       startGpsPoll();
@@ -204,6 +231,7 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
     },
 
     async disconnect(): Promise<void> {
+      log("disconnect() called");
       intentionallyClosed = true;
       clearGpsPoll();
       clearReconnect();
