@@ -1,6 +1,6 @@
 ### Communication Protocol
 
-The system uses two wireless channels: **Bluetooth Low Energy (BLE)** for commands and telemetry, and **Wi‑Fi** for high‑bandwidth data such as camera frames. This section describes both channels, the binary command packet format, and the telemetry encoding.
+The system uses **Bluetooth Low Energy (BLE)** for commands and telemetry, **Wi‑Fi** for high‑bandwidth data such as camera frames, and optionally **TLS on Wi‑Fi** (`wifi_gps_softap`) for HTTPS GPS snapshots and secure WebSocket telemetry in parallel with BLE. This section describes these channels, the binary command packet format, and the telemetry encoding.
 
 ---
 
@@ -11,8 +11,9 @@ The system uses two wireless channels: **Bluetooth Low Energy (BLE)** for comman
 | BLE GATT | Phone → Drone | Commands | Low latency, ~256 B MTU |
 | BLE GATT notifications | Drone → Phone | Telemetry | Low latency, ~256 B MTU |
 | Wi‑Fi soft‑AP + HTTP | Drone → Phone | Camera frames, video | High bandwidth, not real‑time control |
+| Wi‑Fi soft‑AP + HTTPS / WSS (`wifi_gps_softap`) | Phone ↔ Drone | GPS JSON (`/gps`), live telemetry (`/ws`), health (`/`), test stream (`/stream`) | TLS on port 443; WS push ~200 ms |
 
-Control commands and telemetry travel exclusively over BLE. Wi‑Fi is used only when the phone has actively joined the drone's soft‑AP and a high‑bandwidth transfer is needed.
+For `drone_ble` + `drone_wifi`, control commands and BLE telemetry travel over BLE; plain HTTP Wi‑Fi is used for camera/stream when the phone joins the AP. When **`wifi_gps_softap`** is flashed, the phone can additionally use **HTTPS and WSS on port 443** for the same JSON field names as BLE telemetry ([Section 12 — Mobile App Architecture](12_Mobile_App_Architecture.md) for client integration). Flight-control command routing over WSS is not yet wired in firmware.
 
 ---
 
@@ -107,6 +108,45 @@ The stored device ID is persisted by the app so that subsequent sessions can rec
 The `drone_wifi` firmware runs a **soft access point** (`drone_wifi/softAP`). The phone connects to this network via the Wi‑Fi settings screen in the app, which uses `react-native-wifi-reborn` to scan and join the AP.
 
 Wi‑Fi is used for camera frames and other high-bandwidth data only. All flight control remains on BLE regardless of Wi‑Fi connection state. On iOS, background Wi‑Fi scanning is not available; the user must connect manually via the system Settings app.
+
+---
+
+#### Secure Wi‑Fi telemetry (`wifi_gps_softap`)
+
+The **`wifi_gps_softap`** firmware (`wifi_gps_softap/`) runs a **single TLS server on port 443** only (no plain HTTP on 80/81). It is an optional parallel path to BLE for GPS-related telemetry: same JSON field names as documented in [Section 10 — GPS and Telemetry](10_GPS_Telemetry.md), delivered over HTTPS and secure WebSocket instead of Base64-wrapped BLE notifications.
+
+| Path | Method | Purpose | Notes |
+|------|--------|---------|-------|
+| `/` | GET | Health / alive check | Plain-text response |
+| `/stream` | GET | Chunked tick counter | Test / placeholder stream (`Cache-Control: no-cache`) |
+| `/gps` | GET | One-shot GPS + compass JSON | `application/json`; CORS `Access-Control-Allow-Origin: *` |
+| `/ws` | GET (Upgrade) | Secure WebSocket telemetry | JSON text frames, ~200 ms cadence (`WS_TELEM_INTERVAL_MS` in `wifi_gps_softap/main/softap_gps_main.c`) |
+
+**WebSocket behaviour**
+
+- **Single active client:** the firmware tracks one socket fd (`s_ws_client_fd`); a new connection replaces the previous one (“last connect wins”).
+- **Outbound:** telemetry JSON matches `/gps` field set (`droneGpsValid`, `droneLat`, `droneLon`, `droneGpsFixQuality`, `droneGpsSatellites`, `droneGpsHdop`, `droneHeadingDeg`).
+- **Inbound:** TEXT/BINARY frames from the phone are read and discarded today; integration with flight commands is **TBD**.
+
+---
+
+#### TLS and self-signed certificate
+
+The certificate and private key are embedded at build time from:
+
+- `wifi_gps_softap/main/certs/servercert.pem`
+- `wifi_gps_softap/main/certs/prvkey.pem`
+
+(registered via `EMBED_TXTFILES` in `wifi_gps_softap/main/CMakeLists.txt`).
+
+For the default ESP-IDF soft‑AP gateway, the cert should use subject **`CN=drone-ap`** and SAN **`IP:192.168.4.1`**. Browsers and apps will warn unless the cert is trusted or pinning is configured — see [Section 12 — Mobile App Architecture](12_Mobile_App_Architecture.md) for mobile trust handling.
+
+**Verify from a laptop or phone on the drone AP:**
+
+```bash
+curl -vk https://192.168.4.1/gps
+openssl s_client -connect 192.168.4.1:443 -showcerts
+```
 
 ---
 

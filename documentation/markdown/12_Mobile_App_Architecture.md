@@ -15,14 +15,19 @@ CommsContext   (src/context/CommsContext.tsx)
     ▼
 DroneComms interface   (src/comms/comms.ts)
     │   connect / disconnect / send / subscribeTelemetry
+    ├──────────────────────────────────────┐
+    ▼                                      ▼
+Wi‑Fi telemetry adapter (wired in       BLE adapter
+CommsProvider today)                     (src/comms/ble-comms.ts)
+(src/comms/wifi-comms.ts)                    │
+    │                                      ▼
+    ▼                              RealDroneBleClient
+WebSocket (wss://…)              (src/comms/BLE/ble.real.ts)
+parseBleTelemetryPayload             │
+on text frames                         ▼
+    │                              ESP32 drone_ble (BLE GATT)
     ▼
-BLE adapter   (src/comms/ble-comms.ts)
-    │   wraps RealDroneBleClient (or mock)
-    ▼
-RealDroneBleClient   (src/comms/BLE/ble.real.ts)
-    │   react-native-ble-plx — scans, connects, writes, monitors notifications
-    ▼
-ESP32 drone_ble firmware   (BLE GATT)
+wifi_gps_softap (HTTPS / WSS :443)
 ```
 
 ---
@@ -33,7 +38,7 @@ ESP32 drone_ble firmware   (BLE GATT)
 
 Subscribes to telemetry via `useComms().subscribeTelemetry()` and displays:
 
-- BLE link status and RSSI bars
+- Link status (`link` field: connecting / connected / disconnected) and RSSI bars when provided by BLE telemetry
 - Battery percentage and estimated minutes remaining
 - Altitude and speed
 - Follow mode toggle indicator
@@ -63,7 +68,7 @@ Probes the drone's HTTP server (`GET http://192.168.4.1/`) every 2.5 s while the
 
 #### CommsContext
 
-`CommsContext` (`src/context/CommsContext.tsx`) creates a single `DroneComms` instance at app startup using `useMemo` and provides it to all descendants via React context. This ensures exactly one BLE connection is shared across all tabs.
+`CommsProvider` (`src/context/CommsContext.tsx`) creates a single `DroneComms` instance with **`createWifiComms()`** (`useMemo`) and calls **`connect()` on mount** so a WebSocket to the drone AP stays up with automatic reconnect. BLE discovery still exists on the Connect tab, but **telemetry and commands through `useComms()` are Wi‑Fi / WSS** unless you change the provider to use `createBleComms()` again.
 
 ```tsx
 const comms = useComms();   // any screen or component
@@ -82,6 +87,7 @@ Defined in `src/comms/comms.ts`. All comms adapters implement this interface, ma
 | `disconnect()` | Tear down the connection |
 | `send(cmd)` | Send a `Command` to the drone |
 | `subscribeTelemetry(cb)` | Register a callback for telemetry updates; returns an unsubscribe function |
+| `sendBytes(bytes)` | Low-level escape hatch: send raw command bytes (used by Wi‑Fi adapter for binary WS frames) |
 
 ---
 
@@ -92,6 +98,22 @@ Wraps `RealDroneBleClient` (or a mock when `EXPO_PUBLIC_BLE_MOCK=1` or when the 
 - Maintains a listener set for telemetry subscribers.
 - On each BLE notification, calls `parseBleTelemetryPayload()` and merges the result into the last known telemetry object before emitting to all listeners.
 - Tracks connection state changes and emits a synthetic telemetry patch when the link transitions.
+
+---
+
+#### Wi‑Fi telemetry adapter (`createWifiComms`)
+
+Implemented in `src/comms/wifi-comms.ts`. It implements the same **`DroneComms`** interface as the BLE adapter so screens can stay unchanged when the context wires this adapter instead of BLE.
+
+| Behaviour | Detail |
+|-----------|--------|
+| Transport | Opens a **WebSocket** to the drone (URL from `options.url` or `buildDroneWsUrl()` in `src/stream/droneStream.ts`) |
+| Inbound | **Text** frames only; each payload is split into lines and passed through **`parseBleTelemetryPayload(...)`** (same parser as BLE) |
+| Outbound | **`send` / `sendBytes`** encode commands as **raw binary** WebSocket frames (`encodeOutgoingCommand` is identity today); exact framing vs `wifi_gps_softap` command handling is **TBD** |
+| Reconnect | Initial delay **500 ms**, doubles each failure up to **8 s** maximum, until `disconnect()` |
+| Link state | Sets telemetry `link` to `CONNECTING` → `SECURE_LINK` on open → `DISCONNECTED` on close (same labels as BLE for UI reuse) |
+
+Binary inbound WS frames are ignored until firmware defines a binary telemetry encoding.
 
 ---
 
@@ -118,10 +140,15 @@ Located at `src/hooks/usePhoneLocation.ts`. Requests foreground location permiss
 `droneStream.ts` exports constants and helpers for the drone's soft‑AP HTTP server:
 
 - `DRONE_AP_HOST` = `"192.168.4.1"` — ESP‑IDF default soft‑AP gateway
-- `buildDroneStreamUrl()` → `"http://192.168.4.1/stream"`
+- `buildDroneStreamUrl()` → `"http://192.168.4.1/stream"` (together with `DRONE_HTTP_SCHEME` / `DRONE_HTTP_PORT`)
+- `buildDroneWsUrl()` → `"ws://192.168.4.1:81/ws"` (scheme/port/path from module constants)
 - `probeDroneReachable(timeoutMs?)` — fetches `GET /` and returns `true` on 200
 
 `RealDroneWifiClient` (`src/comms/WiFi/wifi.real.ts`) wraps `react-native-wifi-reborn` to scan nearby networks and join the drone's AP programmatically (Android). On iOS it returns an empty scan list; users must connect manually.
+
+> **Known mismatch (`wifi_gps_softap` firmware)**  
+> `wifi_gps_softap/main/softap_gps_main.c` serves **HTTPS and WSS only on port 443**. The module still defines `DRONE_HTTP_SCHEME = "http"`, `DRONE_HTTP_PORT = 80`, `DRONE_WS_SCHEME = "ws"`, `DRONE_WS_PORT = 81`. Update **`DRONE_HTTP_SCHEME`**, **`DRONE_HTTP_PORT`** (443), **`DRONE_WS_SCHEME`**, **`DRONE_WS_PORT`** (443 or omit port when using defaults), and the helpers **`buildDroneRootUrl`**, **`buildDroneStreamUrl`**, **`buildDroneWsUrl`** so they produce `https://192.168.4.1/…` and `wss://192.168.4.1/ws`.  
+> **Self-signed TLS:** production apps must implement explicit trust (e.g. certificate pinning, custom trust manager) or developer-only exceptions — on **iOS**, ATS may block `https://192.168.4.1` unless `NSAppTransportSecurity` allows the exception or pinning is configured; on **Android**, consider Network Security Config or equivalent for user CAs / pinning. See [Section 11 — Communication Protocol](11_Communication_Protocol.md) for cert subject/SAN and verification commands.
 
 ---
 
