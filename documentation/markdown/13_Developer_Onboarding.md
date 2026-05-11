@@ -139,6 +139,25 @@ On the phone, join the drone's access point (Android: use the **Connect** tab �
 
 ---
 
+#### 8. Flash the Wi‑Fi + GPS + TLS firmware (optional)
+
+Use this target when you want HTTPS GPS snapshots and secure WebSocket telemetry on the **ESP32‑C3** (`wifi_gps_softap` merges soft‑AP with GPS/NMEA + compass from `gps_bringup` sources).
+
+```bash
+cd wifi_gps_softap
+idf.py set-target esp32c3
+idf.py menuconfig          # Example Configuration → WiFi SSID / password / channel as needed
+idf.py -p /dev/ttyUSB0 flash monitor
+```
+
+**Smoke test on a phone:** join the drone access point, then open **`https://192.168.4.1/gps`** in the browser. Expect a browser warning for the self-signed certificate — proceed for development only.
+
+If you change the soft‑AP gateway IP from the ESP‑IDF default (`192.168.4.1`), regenerate the embedded cert so the SAN includes the new IP (`wifi_gps_softap/main/certs/` — see [Section 11 — Communication Protocol](11_Communication_Protocol.md)).
+
+The mobile app must use **`https://` / `wss://`** on port **443** and handle TLS trust for the embedded cert; see [Section 12 — Mobile App Architecture](12_Mobile_App_Architecture.md).
+
+---
+
 #### Repository quick reference
 
 | Directory | What it is |
@@ -146,6 +165,7 @@ On the phone, join the drone's access point (Android: use the **Connect** tab �
 | `flight_control/` | Flight loop firmware (IMU + PID + motors) |
 | `drone_ble/` | BLE GATT firmware (command/telemetry bridge) |
 | `drone_wifi/` | Wi‑Fi soft‑AP + HTTP server firmware |
+| `wifi_gps_softap/` | Wi‑Fi soft‑AP + GPS/compass + HTTPS / WSS (port 443) firmware |
 | `mobile/` | React Native (Expo) phone app |
 | `Drone tests/` | PlatformIO hardware integration tests |
 | `motor_tests/` | Isolated motor‑driver test sketch |
@@ -163,3 +183,6 @@ On the phone, join the drone's access point (Android: use the **Connect** tab �
 | DroneBLE not appearing in scan | Firmware not advertising | Check serial monitor; reflash `drone_ble` |
 | IMU init failed | Wrong SDA/SCL pins or I2C address | Run `idf.py menuconfig` and verify `CONFIG_IMU_I2C_SDA_GPIO` / `SCL_GPIO` |
 | Wi‑Fi not appearing in app scan (iOS) | iOS blocks programmatic scan | Connect manually via system Settings → Wi‑Fi |
+| Browser warns on `https://192.168.4.1/gps` | Self-signed embedded cert | Expected for dev; trust flow or accept risk on device only — see [Section 11 — Communication Protocol](11_Communication_Protocol.md) |
+| `droneGpsValid` stays `false` in JSON | No satellite fix yet | Wait for sky view; confirm UART GPS wiring; check serial log for `GPS valid=…` / `sats=…` |
+| New WSS client disconnects the old one | Single WebSocket client in `wifi_gps_softap` | Last connection wins; only one telemetry consumer at a time |
