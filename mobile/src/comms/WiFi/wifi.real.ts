@@ -197,7 +197,7 @@ export class RealDroneWifiClient implements DroneWifiClient {
         reason: "systemManaged",
         message:
           nativeError ??
-          "Android only lets apps disconnect networks they joined themselves. Use the Wi‑Fi panel to disconnect this network.",
+          "android only lets apps disconnect networks they joined themselves. Use the Wi‑Fi panel to disconnect this network.",
       };
     }
 
