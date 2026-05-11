@@ -1,2 +1,11 @@
 # Enable WebSocket support for secure /ws handler on HTTPS server
 CONFIG_HTTPD_WS_SUPPORT=y
+
+# NimBLE (BLE peripheral alongside Wi-Fi on ESP32-C3)
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# App image exceeds default 1MB factory with BT + Wi-Fi + mbedTLS
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x8000

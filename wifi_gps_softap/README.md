@@ -4,9 +4,12 @@ This project merges:
 
 - **HTTPS server** — Single TLS server on port **443** with `/` health check, `/stream` chunked ticks, and **`/gps`** JSON snapshot.
 - **Secure WebSocket** — Same TLS server, path **`/ws`**, pushes JSON telemetry ~5 Hz (`droneLat`, `droneLon`, `droneGpsValid`, `droneHeadingDeg`, …).
+- **NimBLE** — Same binary advertises **`DroneBLE`**; GATT writes accept flight commands; notifications send **Base64(JSON)** telemetry aligned with `/gps` when a phone is subscribed.
 - **[`gps_bringup`](../gps_bringup)** — NMEA GPS over UART and magnetometer on I2C (sources are **included by path** from `gps_bringup/main`, not duplicated).
 
 Pin and bus definitions live in [`gps_bringup/main/board_config.h`](../gps_bringup/main/board_config.h).
+
+Flash is assumed **2 MB**; the custom [`partitions.csv`](partitions.csv) keeps the factory app below the flash size limit with NimBLE enabled.
 
 ## Build
 
