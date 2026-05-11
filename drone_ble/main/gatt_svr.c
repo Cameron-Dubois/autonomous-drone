@@ -28,6 +28,12 @@
 #include "bleprph.h"
 #include "services/ans/ble_svc_ans.h"
 #include "esp_timer.h"
+#include "mbedtls/base64.h"
+#include "nimble/nimble_port.h"
+
+void ble_hs_lock(void);
+void ble_hs_unlock(void);
+
 #include "motor.h"
 
 /*** Maximum number of characteristics with the notify flag ***/
@@ -491,4 +497,37 @@ gatt_svr_init(void)
     gatt_svr_dsc_val = 0x99;
 
     return 0;
+}
+
+int
+gatt_svr_notify_telemetry_json_b64(uint16_t conn_handle, const char *json_utf8)
+{
+    if (conn_handle == BLE_HS_CONN_HANDLE_NONE || json_utf8 == NULL) {
+        return -1;
+    }
+
+    size_t jlen = strlen(json_utf8);
+    if (jlen == 0) {
+        return -1;
+    }
+
+    unsigned char b64[768];
+    size_t olen = 0;
+    int mrc = mbedtls_base64_encode(b64, sizeof(b64), &olen,
+                                      (const unsigned char *)json_utf8, jlen);
+    if (mrc != 0) {
+        return -2;
+    }
+
+    ble_hs_lock();
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(b64, olen);
+    if (om == NULL) {
+        ble_hs_unlock();
+        return -3;
+    }
+
+    int rc = ble_gatts_notify_custom(conn_handle, gatt_svr_chr_val_handle, om);
+    ble_hs_unlock();
+
+    return rc;
 }

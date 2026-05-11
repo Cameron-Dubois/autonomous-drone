@@ -1,8 +1,12 @@
 idf_component_register(
     SRCS
         "softap_gps_main.c"
+        "ble_stack.c"
+        "ble_misc.c"
+        "motor_stub.c"
         "../../gps_bringup/main/gps_nmea.c"
         "../../gps_bringup/main/compass_mag.c"
+        "../../drone_ble/main/gatt_svr.c"
     PRIV_REQUIRES
         esp_wifi
         nvs_flash
@@ -13,9 +17,13 @@ idf_component_register(
         esp_driver_i2c
         freertos
         log
+        bt
+        esp_timer
+        mbedtls
     INCLUDE_DIRS
         "."
         "../../gps_bringup/main"
+        "../../drone_ble/main"
     EMBED_TXTFILES
         "certs/servercert.pem"
         "certs/prvkey.pem"

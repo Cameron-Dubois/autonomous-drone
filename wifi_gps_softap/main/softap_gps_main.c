@@ -10,6 +10,9 @@
 #include "board_config.h"
 #include "compass_mag.h"
 #include "gps_nmea.h"
+#include "bleprph.h"
+#include "wifi_gps_ble.h"
+#include "motor.h"
 
 #include "esp_event.h"
 #include "esp_http_server.h"
@@ -58,6 +61,38 @@ static int ws_fd_get(void)
 }
 
 #define WS_TELEM_INTERVAL_MS 200
+
+/** Build one-line JSON telemetry (same schema as /gps and WSS). Returns written length or -1. */
+static int build_gps_telem_json(char *buf, size_t buf_sz, const gps_fix_t *fix, bool compass_ok, float heading_deg)
+{
+    char hdg_part[24];
+    if (compass_ok) {
+        snprintf(hdg_part, sizeof(hdg_part), "%.1f", (double)heading_deg);
+    } else {
+        memcpy(hdg_part, "null", 5);
+    }
+
+    int n;
+    if (fix->valid) {
+        n = snprintf(buf, buf_sz,
+                     "{\"droneGpsValid\":true,\"droneLat\":%.7f,\"droneLon\":%.7f,"
+                     "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":%.1f,"
+                     "\"droneHeadingDeg\":%s}",
+                     fix->lat_deg, fix->lon_deg, fix->fix_quality, fix->satellites, (double)fix->hdop,
+                     hdg_part);
+    } else {
+        n = snprintf(buf, buf_sz,
+                     "{\"droneGpsValid\":false,\"droneLat\":null,\"droneLon\":null,"
+                     "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":null,"
+                     "\"droneHeadingDeg\":%s}",
+                     fix->fix_quality, fix->satellites, hdg_part);
+    }
+
+    if (n <= 0 || (size_t)n >= buf_sz) {
+        return -1;
+    }
+    return n;
+}
 
 static esp_err_t ws_handler(httpd_req_t *req)
 {
@@ -119,60 +154,36 @@ static esp_err_t ws_handler(httpd_req_t *req)
 
 static void ws_push_telemetry(const gps_fix_t *fix, bool compass_ok, float heading_deg)
 {
-    if (!s_httpd) {
-        return;
-    }
-
-    int fd = ws_fd_get();
-    if (fd < 0) {
-        return;
-    }
-
-    if (httpd_ws_get_fd_info(s_httpd, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
-        ws_fd_set(-1);
-        return;
-    }
-
-    char hdg_part[24];
-    if (compass_ok) {
-        snprintf(hdg_part, sizeof(hdg_part), "%.1f", (double)heading_deg);
-    } else {
-        memcpy(hdg_part, "null", 5);
-    }
-
     char buf[384];
-    int n;
-
-    if (fix->valid) {
-        n = snprintf(buf, sizeof(buf),
-                     "{\"droneGpsValid\":true,\"droneLat\":%.7f,\"droneLon\":%.7f,"
-                     "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":%.1f,"
-                     "\"droneHeadingDeg\":%s}",
-                     fix->lat_deg, fix->lon_deg, fix->fix_quality, fix->satellites, (double)fix->hdop,
-                     hdg_part);
-    } else {
-        n = snprintf(buf, sizeof(buf),
-                     "{\"droneGpsValid\":false,\"droneLat\":null,\"droneLon\":null,"
-                     "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":null,"
-                     "\"droneHeadingDeg\":%s}",
-                     fix->fix_quality, fix->satellites, hdg_part);
-    }
-
-    if (n <= 0 || n >= (int)sizeof(buf)) {
+    int n = build_gps_telem_json(buf, sizeof(buf), fix, compass_ok, heading_deg);
+    if (n < 0) {
         return;
     }
 
-    httpd_ws_frame_t out = {
-        .final = true,
-        .type = HTTPD_WS_TYPE_TEXT,
-        .payload = (uint8_t *)buf,
-        .len = (size_t)n,
-    };
+    if (s_httpd) {
+        int fd = ws_fd_get();
+        if (fd >= 0 && httpd_ws_get_fd_info(s_httpd, fd) == HTTPD_WS_CLIENT_WEBSOCKET) {
+            httpd_ws_frame_t out = {
+                .final = true,
+                .type = HTTPD_WS_TYPE_TEXT,
+                .payload = (uint8_t *)buf,
+                .len = (size_t)n,
+            };
 
-    esp_err_t err = httpd_ws_send_data(s_httpd, fd, &out);
-    if (err != ESP_OK) {
-        ESP_LOGD(TAG, "ws telemetry send: %s", esp_err_to_name(err));
-        ws_fd_set(-1);
+            esp_err_t err = httpd_ws_send_data(s_httpd, fd, &out);
+            if (err != ESP_OK) {
+                ESP_LOGD(TAG, "ws telemetry send: %s", esp_err_to_name(err));
+                ws_fd_set(-1);
+            }
+        }
+    }
+
+    uint16_t ble_conn = wifi_gps_ble_active_conn_handle();
+    if (ble_conn != BLE_HS_CONN_HANDLE_NONE) {
+        int brc = gatt_svr_notify_telemetry_json_b64(ble_conn, buf);
+        if (brc != 0) {
+            ESP_LOGD(TAG, "ble telemetry notify rc=%d", brc);
+        }
     }
 }
 
@@ -222,30 +233,9 @@ static esp_err_t gps_json_handler(httpd_req_t *req)
     float heading = 0.0f;
     bool compass_ok = compass_read_heading_deg(&heading);
 
-    char hdg_part[24];
-    if (compass_ok) {
-        snprintf(hdg_part, sizeof(hdg_part), "%.1f", (double)heading);
-    } else {
-        memcpy(hdg_part, "null", 5);
-    }
-
     char buf[512];
-    int n;
-    if (fix.valid) {
-        n = snprintf(buf, sizeof(buf),
-                     "{\"droneGpsValid\":true,\"droneLat\":%.7f,\"droneLon\":%.7f,"
-                     "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":%.1f,"
-                     "\"droneHeadingDeg\":%s}",
-                     fix.lat_deg, fix.lon_deg, fix.fix_quality, fix.satellites, (double)fix.hdop, hdg_part);
-    } else {
-        n = snprintf(buf, sizeof(buf),
-                     "{\"droneGpsValid\":false,\"droneLat\":null,\"droneLon\":null,"
-                     "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":null,"
-                     "\"droneHeadingDeg\":%s}",
-                     fix.fix_quality, fix.satellites, hdg_part);
-    }
-
-    if (n <= 0 || n >= (int)sizeof(buf)) {
+    int n = build_gps_telem_json(buf, sizeof(buf), &fix, compass_ok, heading);
+    if (n < 0) {
         httpd_resp_set_status(req, "500 Internal Server Error");
         httpd_resp_set_type(req, "application/json");
         return httpd_resp_send(req, "{}", HTTPD_RESP_USE_STRLEN);
@@ -460,10 +450,13 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    ESP_LOGI(TAG, "SoftAP + GPS + compass + TLS WebSocket telemetry");
+    ESP_LOGI(TAG, "SoftAP + GPS + compass + TLS + BLE (NimBLE)");
 
     wifi_init_softap();
     start_https_server();
+
+    motors_init();
+    wifi_gps_ble_stack_start();
 
     gps_uart_init();
     esp_err_t cerr = compass_init();

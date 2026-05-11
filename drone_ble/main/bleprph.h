@@ -24,7 +24,9 @@
 #include <stdint.h>
 #include "nimble/ble.h"
 #include "modlog/modlog.h"
-#include "esp_peripheral.h"
+
+void print_bytes(const uint8_t *bytes, int len);
+void print_addr(const void *addr);
 
 #ifdef __cplusplus
 extern "C" {
@@ -94,6 +96,9 @@ int drone_handle_command(const drone_cmd_t *cmd);
 /* GATT server hooks used by main.c */
 void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg);
 int gatt_svr_init(void);
+
+/** Notify subscribed centrals with Base64(JSON) telemetry (mobile decodes then parses JSON). */
+int gatt_svr_notify_telemetry_json_b64(uint16_t conn_handle, const char *json_utf8);
 
 #ifdef __cplusplus
 }
