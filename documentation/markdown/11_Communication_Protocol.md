@@ -1,6 +1,6 @@
 ### Communication Protocol
 
-The system uses **Bluetooth Low Energy (BLE)** for commands and telemetry, **Wi‑Fi** for high‑bandwidth data such as camera frames, and optionally **TLS on Wi‑Fi** (`wifi_gps_softap`) for HTTPS GPS snapshots and secure WebSocket telemetry in parallel with BLE. This section describes these channels, the binary command packet format, and the telemetry encoding.
+The system uses two wireless channels: **Bluetooth Low Energy (BLE)** for commands and telemetry, and **Wi‑Fi** for high‑bandwidth data such as camera frames. This section describes both channels, the binary command packet format, and the telemetry encoding.
 
 ---
 
@@ -11,9 +11,8 @@ The system uses **Bluetooth Low Energy (BLE)** for commands and telemetry, **Wi�
 | BLE GATT | Phone → Drone | Commands | Low latency, ~256 B MTU |
 | BLE GATT notifications | Drone → Phone | Telemetry | Low latency, ~256 B MTU |
 | Wi‑Fi soft‑AP + HTTP | Drone → Phone | Camera frames, video | High bandwidth, not real‑time control |
-| Wi‑Fi soft‑AP + HTTPS / WSS (`wifi_gps_softap`) | Phone ↔ Drone | GPS JSON (`/gps`), live telemetry (`/ws`), health (`/`), test stream (`/stream`) | TLS on port 443; WS push ~200 ms |
 
-For `drone_ble` + `drone_wifi`, control commands and BLE telemetry travel over BLE; plain HTTP Wi‑Fi is used for camera/stream when the phone joins the AP. When **`wifi_gps_softap`** is flashed, the phone can additionally use **HTTPS and WSS on port 443** for the same JSON field names as BLE telemetry ([Section 12 — Mobile App Architecture](12_Mobile_App_Architecture.md) for client integration). Flight-control command routing over WSS is not yet wired in firmware.
+Control commands and telemetry travel exclusively over BLE. Wi‑Fi is used only when the phone has actively joined the drone's soft‑AP and a high‑bandwidth transfer is needed.
 
 ---
 
