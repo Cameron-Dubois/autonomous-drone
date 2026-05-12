@@ -133,7 +133,7 @@ export default function Connect() {
       await client.disconnect();
       setBluetoothStatus("disconnected");
       if (isHybridComms(comms)) {
-        comms.syncBleFromExternalConnection();
+        comms.notifyBleDisconnected();
       }
     } catch (e) {
       setBleError(e instanceof Error ? e.message : "Disconnect failed");

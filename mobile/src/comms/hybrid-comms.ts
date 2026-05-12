@@ -25,6 +25,8 @@ export function stripLinkFromPatch(patch: Partial<Telemetry>): Partial<Telemetry
 export type HybridComms = DroneComms & {
   /** Call after Connect tab establishes a BLE session so telemetry notify can attach. */
   syncBleFromExternalConnection(): void;
+  /** Call when the app tears down the BLE GATT session (Connect → Disconnect). */
+  notifyBleDisconnected(): void;
 };
 
 export function createHybridComms(inner: DroneComms): HybridComms {
@@ -124,6 +126,10 @@ export function createHybridComms(inner: DroneComms): HybridComms {
       }
       if (client.getConnectedDeviceId()) {
         await client.sendCommand(bytes);
+        /* flight_control disarms if no BLE traffic for LINK_TIMEOUT_MS — Control tab often
+         * has zero telemetry subscribers, so poll+heartbeat must not depend on Home alone. */
+        startPoll();
+        startBleHeartbeat();
         tryAttachBleTelemetry();
         return;
       }
@@ -154,23 +160,44 @@ export function createHybridComms(inner: DroneComms): HybridComms {
       return () => {
         hybridListeners.delete(cb);
         if (hybridListeners.size === 0) {
-          stopPoll();
-          stopBleHeartbeat();
-          detachBle();
           stopInnerBridge();
+          /* Keep BLE poll+heartbeat while GATT is up so ARM isn't killed by link timeout
+           * when the user leaves Home for Connect/Control only. */
+          try {
+            if (!getBleClient().getConnectedDeviceId()) {
+              stopPoll();
+              stopBleHeartbeat();
+              detachBle();
+            }
+          } catch {
+            stopPoll();
+            stopBleHeartbeat();
+            detachBle();
+          }
         }
       };
     },
 
     syncBleFromExternalConnection() {
       detachBle();
+      startPoll();
+      startBleHeartbeat();
       tryAttachBleTelemetry();
+    },
+
+    notifyBleDisconnected() {
+      stopPoll();
+      stopBleHeartbeat();
+      detachBle();
     },
   };
 }
 
 export function isHybridComms(c: DroneComms): c is HybridComms {
-  return typeof (c as HybridComms).syncBleFromExternalConnection === "function";
+  return (
+    typeof (c as HybridComms).syncBleFromExternalConnection === "function" &&
+    typeof (c as HybridComms).notifyBleDisconnected === "function"
+  );
 }
 
 /** Flip to `false` to restore Wi‑Fi-only comms without code removal. */

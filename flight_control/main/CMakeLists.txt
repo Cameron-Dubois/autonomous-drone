@@ -13,10 +13,9 @@ set(srcs "main.c"
 #register this component and declare its dependencies
 #esp_driver_i2c   - IMU
 #esp_driver_gpio  - BOOT button + pin config
-#esp_driver_ledc  - brushless ESC PWM
+#esp_driver_gpio  - DSHOT300 bit-bang (same as motor_tests)
 #bt + nvs_flash   - NimBLE BLE command server (ble_command.c)
 idf_component_register(SRCS "${srcs}"
                        INCLUDE_DIRS "."
-                       REQUIRES esp_driver_i2c esp_driver_gpio esp_driver_ledc
-                                bt nvs_flash
+                       REQUIRES esp_driver_i2c esp_driver_gpio bt nvs_flash
                        PRIV_REQUIRES esp_timer)
