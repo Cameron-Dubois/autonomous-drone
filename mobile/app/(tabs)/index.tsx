@@ -5,7 +5,7 @@ import { useComms } from "../../src/context/CommsContext";
 import { usePhoneLocation } from "../../src/hooks/usePhoneLocation";
 import { createDefaultTelemetry } from "../../src/protocol/types";
 import { spacing, fontSizes, radii, getPanelDimensions } from "../../src/theme/layout";
-import { TelemetryDroneProvider, useFollowToPhoneNavigation, headingToEastNorthUnit } from "../../src/nav";
+import { TelemetryDroneProvider, useFollowToPhoneNavigation, haversineDistanceM, isValidLatLon } from "../../src/nav";
 import { useFollowMockController } from "../../src/autonomy";
 import type { FollowState } from "../../src/autonomy";
 
@@ -41,10 +41,6 @@ export default function HomeScreen() {
     const droneGpsValid = tel.droneGpsValid && tel.droneLat != null && tel.droneLon != null;
     const droneHeadingOk =
         typeof tel.droneHeadingDeg === "number" && Number.isFinite(tel.droneHeadingDeg);
-    const compassUnit =
-        droneHeadingOk && tel.droneHeadingDeg != null
-            ? headingToEastNorthUnit(tel.droneHeadingDeg)
-            : null;
     const phoneFixOk = phoneLoc.lat != null && phoneLoc.lon != null;
     const linkOk = tel.link === "SECURE_LINK";
     const linkLabel = linkOk
@@ -63,6 +59,22 @@ export default function HomeScreen() {
     const navSnap = useFollowToPhoneNavigation({ droneProvider });
     const follow = useFollowMockController({ snapshot: navSnap, comms });
 
+    const fallbackDistanceM =
+        phoneLoc.lat != null &&
+        phoneLoc.lon != null &&
+        tel.droneLat != null &&
+        tel.droneLon != null &&
+        tel.droneGpsValid &&
+        isValidLatLon({ lat: phoneLoc.lat, lon: phoneLoc.lon }) &&
+        isValidLatLon({ lat: tel.droneLat, lon: tel.droneLon })
+            ? haversineDistanceM(
+                  { lat: tel.droneLat, lon: tel.droneLon },
+                  { lat: phoneLoc.lat, lon: phoneLoc.lon }
+              )
+            : null;
+
+    const distancePhoneDroneM = navSnap.distancePhoneToDrone_m ?? fallbackDistanceM;
+
     let followWarning: string | null = null;
     if (!linkOk) followWarning = "No link to drone. Connect on the Connect tab.";
     else if (!phoneFixOk) followWarning = "Waiting for phone GPS fix…";
@@ -72,9 +84,7 @@ export default function HomeScreen() {
     const canStartFollow = linkOk && phoneFixOk && droneGpsValid && droneHeadingOk;
 
     const distLabel =
-        navSnap.distancePhoneToDrone_m != null
-            ? `${navSnap.distancePhoneToDrone_m.toFixed(1)} m`
-            : "—";
+        distancePhoneDroneM != null ? `${distancePhoneDroneM.toFixed(1)} m` : "—";
     const bearLabel =
         navSnap.bearingDroneToPhone_deg != null
             ? `${Math.round(navSnap.bearingDroneToPhone_deg)}°`
@@ -165,6 +175,25 @@ export default function HomeScreen() {
                         )}
                     </View>
 
+                    <View style={styles.distanceSection}>
+                        <Text style={styles.label}>DISTANCE (PHONE ↔ DRONE)</Text>
+                        <Text
+                            style={[
+                                styles.distanceHero,
+                                distancePhoneDroneM != null ? styles.teal : styles.droneCoordsMuted,
+                            ]}
+                        >
+                            {distancePhoneDroneM != null ? `${distancePhoneDroneM.toFixed(1)} m` : "—"}
+                        </Text>
+                        <Text style={styles.phoneSub}>
+                            {navSnap.distancePhoneToDrone_m != null
+                                ? "High-accuracy phone fix + drone GPS (great-circle)."
+                                : fallbackDistanceM != null
+                                  ? "Great-circle from current coordinates (nav waiting on GPS quality or age)."
+                                  : "Needs reliable phone and drone lat/lon."}
+                        </Text>
+                    </View>
+
                     <View style={styles.droneSection}>
                         <Text style={styles.label}>DRONE (GPS)</Text>
                         <Text
@@ -197,13 +226,48 @@ export default function HomeScreen() {
                         </Text>
                     </View>
 
-                <View style={[styles.telemetry, styles.telemetryDisabled]}>
-                    <Text style={[styles.label, styles.labelDisabled]}>Ground Speed</Text>
-                    <Text style={[styles.big, styles.bigDisabled]}>
-                        {tel.speedKmh}
-                        <Text style={[styles.unit, styles.unitDisabled]}> KM/H</Text>
-                    </Text>
-                </View>
+                    <View style={styles.baroTestSection}>
+                        <Text style={styles.label}>DRONE BAROMETER (TEST)</Text>
+                        <View style={styles.baroTestCard}>
+                            <View style={styles.baroTestRow}>
+                                <Text style={styles.baroTestK}>droneBaroOk</Text>
+                                <Text
+                                    style={[
+                                        styles.mono,
+                                        { marginTop: 0 },
+                                        tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
+                                    ]}
+                                >
+                                    {tel.droneBaroOk ? "true" : "false"}
+                                </Text>
+                            </View>
+                            <View style={styles.baroTestRow}>
+                                <Text style={styles.baroTestK}>altM (JSON)</Text>
+                                <Text
+                                    style={[
+                                        styles.mono,
+                                        { marginTop: 0 },
+                                        tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
+                                    ]}
+                                >
+                                    {tel.droneBaroOk ? String(tel.altM) : "—"}
+                                </Text>
+                            </View>
+                            <Text
+                                style={[
+                                    styles.baroTestHero,
+                                    tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
+                                ]}
+                            >
+                                {tel.droneBaroOk
+                                    ? `${tel.altM >= 0 ? "+" : ""}${tel.altM} m`
+                                    : "— m"}
+                            </Text>
+                            <Text style={styles.baroTestHint}>
+                                Relative Δ vs first good pressure sample after boot (firmware baseline).
+                            </Text>
+                        </View>
+                    </View>
 
                         <View style={styles.followChipRow}>
                             <View
@@ -273,7 +337,6 @@ export default function HomeScreen() {
                                 {follow.running ? "STOP FOLLOW" : "START FOLLOW"}
                             </Text>
                         </Pressable>
-                    </View>
 
                 <View style={styles.controls}>
                     <Pressable
@@ -312,7 +375,48 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         justifyContent: "space-between",
     },
     phoneSection: { marginTop: spacing.xxl },
+    distanceSection: { marginTop: spacing.xl },
+    distanceHero: {
+        marginTop: spacing.sm,
+        fontSize: fontSizes.xxxl * 0.55,
+        fontWeight: "800",
+        fontVariant: ["tabular-nums"],
+        letterSpacing: -1,
+    },
     droneSection: { marginTop: spacing.xl },
+    baroTestSection: { marginTop: spacing.xl },
+    baroTestCard: {
+        marginTop: spacing.sm,
+        padding: spacing.md,
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: "rgba(0,242,255,0.25)",
+        backgroundColor: "rgba(0,242,255,0.06)",
+    },
+    baroTestRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        marginBottom: spacing.xs,
+    },
+    baroTestK: {
+        fontSize: fontSizes.xs,
+        color: "rgba(255,255,255,0.35)",
+        letterSpacing: 0.5,
+        fontVariant: ["tabular-nums"],
+    },
+    baroTestHero: {
+        marginTop: spacing.sm,
+        fontSize: fontSizes.xxl,
+        fontWeight: "800",
+        fontVariant: ["tabular-nums"],
+    },
+    baroTestHint: {
+        marginTop: spacing.sm,
+        fontSize: fontSizes.xs - 1,
+        color: "rgba(255,255,255,0.32)",
+        letterSpacing: 0.3,
+    },
     droneCoordsMuted: { color: "rgba(255,255,255,0.45)" },
     droneAlt: {
         marginTop: spacing.sm,
@@ -345,6 +449,94 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
 
     scrollView: { flex: 1 },
     scrollContent: { paddingBottom: spacing.xxxl + 40 },
+    followChipRow: {
+        marginTop: spacing.xl,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+    },
+    phaseChip: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radii.sm,
+        borderWidth: 1,
+    },
+    phaseChipText: {
+        fontSize: fontSizes.xs,
+        fontWeight: "800",
+        letterSpacing: 1,
+    },
+    followReason: {
+        flex: 1,
+        fontSize: fontSizes.xs,
+        color: "rgba(255,255,255,0.35)",
+    },
+    followReadouts: {
+        marginTop: spacing.md,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: spacing.md,
+    },
+    followReadoutItem: {
+        fontSize: fontSizes.sm,
+        color: "rgba(255,255,255,0.45)",
+    },
+    followReadoutValue: {
+        color: "#00f2ff",
+        fontVariant: ["tabular-nums"],
+        fontWeight: "600",
+    },
+    followWarning: {
+        marginTop: spacing.md,
+        fontSize: fontSizes.sm,
+        color: "rgba(245,166,35,0.9)",
+    },
+    motorBarsBlock: {
+        marginTop: spacing.lg,
+        gap: spacing.xs,
+    },
+    motorBarRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+    },
+    motorLabel: {
+        width: 28,
+        fontSize: fontSizes.xs,
+        color: "rgba(255,255,255,0.45)",
+    },
+    motorBarTrack: {
+        flex: 1,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        overflow: "hidden",
+    },
+    motorBarFill: {
+        height: "100%",
+        backgroundColor: "rgba(0,242,255,0.5)",
+    },
+    motorValue: {
+        width: 36,
+        fontSize: fontSizes.xs,
+        color: "rgba(255,255,255,0.5)",
+        fontVariant: ["tabular-nums"],
+        textAlign: "right",
+    },
+    followBtn: {
+        marginTop: spacing.lg,
+    },
+    followBtnStart: {
+        borderColor: "rgba(0,242,255,0.35)",
+        backgroundColor: "rgba(0,242,255,0.08)",
+    },
+    followBtnStop: {
+        borderColor: "rgba(245,80,80,0.45)",
+        backgroundColor: "rgba(245,80,80,0.12)",
+    },
+    followBtnStopLabel: {
+        color: "rgba(255,180,180,0.95)",
+    },
     controls: {
         marginTop: spacing.xxxl,
     },

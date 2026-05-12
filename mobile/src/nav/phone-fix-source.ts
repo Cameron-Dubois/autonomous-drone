@@ -6,11 +6,13 @@ import type { PhoneFix } from "./types";
 export type PhoneFixCallback = (fix: PhoneFix | null) => void;
 
 export type PhoneFixSourceOptions = {
-  //min move in m before OS may fire
+  /** Min move in m before OS may fire; 0 = time-based only (best for distance readouts). */
   distanceIntervalM?: number;
-  //min time in ms between updates
+  /** Min time between updates (ms). */
   timeIntervalMs?: number;
   accuracy?: Location.LocationAccuracy;
+  /** Request an immediate fix before starting the watcher (matches high-accuracy Home UX). Default true. */
+  primeWithCurrentPosition?: boolean;
 };
 
 export type PhoneFixSource = {
@@ -50,11 +52,25 @@ export function createPhoneFixSource(opts: PhoneFixSourceOptions = {}): PhoneFix
       if (!perm.granted) {
         throw new Error("Location permission denied. Enable it in system settings to follow the phone.");
       }
+
+      const prime = opts.primeWithCurrentPosition !== false;
+      if (prime) {
+        try {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: opts.accuracy ?? Location.Accuracy.BestForNavigation,
+          });
+          handle(loc);
+        } catch {
+          // Watcher will deliver once the chip fixes
+        }
+      }
+
       watcher = await Location.watchPositionAsync(
         {
-          accuracy: opts.accuracy ?? Location.Accuracy.Balanced,
-          distanceInterval: opts.distanceIntervalM ?? 2,
-          timeInterval: opts.timeIntervalMs ?? 1000,
+          accuracy: opts.accuracy ?? Location.Accuracy.BestForNavigation,
+          distanceInterval: opts.distanceIntervalM ?? 0,
+          timeInterval: opts.timeIntervalMs ?? 2000,
+          mayShowUserSettingsDialog: true,
         },
         handle
       );

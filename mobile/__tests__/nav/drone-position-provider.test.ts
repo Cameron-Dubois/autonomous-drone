@@ -47,17 +47,51 @@ describe("DronePositionProvider implementations", () => {
       },
     };
 
+    let step = 0;
     const seen: (DroneFix | null)[] = [];
-    const provider = new TelemetryDroneProvider<T>(source, () => 42);
+    const provider = new TelemetryDroneProvider<T>(source, () => (++step) * 10_000);
     provider.subscribe((f) => seen.push(f));
 
     subscribers[0]?.({ droneLat: 37, droneLon: -122, droneGpsValid: true });
     subscribers[0]?.({ droneLat: null, droneLon: null });
     subscribers[0]?.({ droneLat: 1, droneLon: 1, droneGpsValid: false });
+    // fourth invalid tick: 40_000 - 10_000 > 20_000 hold window -> clear
+    subscribers[0]?.({ droneLat: null, droneLon: null });
+
+    expect(seen[0]).toEqual({
+      lat: 37,
+      lon: -122,
+      timestampMs: 10_000,
+      headingDeg: null,
+      courseDeg: null,
+    });
+    expect(seen[1]).toEqual({ ...seen[0]!, timestampMs: 20_000 });
+    expect(seen[2]).toEqual({ ...seen[0]!, timestampMs: 30_000 });
+    expect(seen[3]).toBeNull();
+  });
+
+  it("TelemetryDroneProvider hold can be disabled (immediate null on invalid GPS)", () => {
+    type T = TelemetryWithDroneGps;
+    const subscribers: ((t: T) => void)[] = [];
+    const source: TelemetrySource<T> = {
+      subscribeTelemetry(cb) {
+        subscribers.push(cb);
+        return () => {
+          const idx = subscribers.indexOf(cb);
+          if (idx >= 0) subscribers.splice(idx, 1);
+        };
+      },
+    };
+
+    const seen: (DroneFix | null)[] = [];
+    const provider = new TelemetryDroneProvider<T>(source, () => 42, 0);
+    provider.subscribe((f) => seen.push(f));
+
+    subscribers[0]?.({ droneLat: 37, droneLon: -122, droneGpsValid: true });
+    subscribers[0]?.({ droneLat: null, droneLon: null });
 
     expect(seen).toEqual([
       { lat: 37, lon: -122, timestampMs: 42, headingDeg: null, courseDeg: null },
-      null,
       null,
     ]);
   });

@@ -47,7 +47,8 @@ export const DEFAULT_NAV_CONFIG: NavigationConfig = {
   arrivalRadiusM: 5,
   arrivalHysteresisM: 2,
   maxPhoneAccuracyM: 25,
-  maxFixAgeMs: 8_000,
+  // Phone + drone can skip a few ticks; keep distance stable without showing stale coords forever
+  maxFixAgeMs: 20_000,
 };
 
 export type NavigationSnapshot = {
