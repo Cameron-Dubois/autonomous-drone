@@ -53,3 +53,9 @@ export function enuFromAnchor(anchor: LatLon, point: LatLon): { east: number; no
     north: dPhi * EARTH_RADIUS_M,
   };
 }
+
+/** Unit vector along compass heading: +xEast = east, +yNorth = north; 0° = north. */
+export function headingToEastNorthUnit(headingDeg: number): { xEast: number; yNorth: number } {
+  const r = toRadians(headingDeg);
+  return { xEast: Math.sin(r), yNorth: Math.cos(r) };
+}

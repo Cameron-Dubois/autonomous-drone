@@ -1,6 +1,7 @@
 import {
   enuFromAnchor,
   haversineDistanceM,
+  headingToEastNorthUnit,
   initialBearingDeg,
   isValidLatLon,
 } from "../../src/nav/geo";
@@ -31,6 +32,18 @@ describe("geo helpers", () => {
     expect(initialBearingDeg({ lat: 0, lon: 0 }, { lat: 0, lon: 1 })).toBeCloseTo(90, 3);
     expect(initialBearingDeg({ lat: 0, lon: 0 }, { lat: -1, lon: 0 })).toBeCloseTo(180, 3);
     expect(initialBearingDeg({ lat: 0, lon: 0 }, { lat: 0, lon: -1 })).toBeCloseTo(270, 3);
+  });
+
+  it("headingToEastNorthUnit: +Y north +X east", () => {
+    const n = headingToEastNorthUnit(0);
+    expect(n.xEast).toBeCloseTo(0, 6);
+    expect(n.yNorth).toBeCloseTo(1, 6);
+    const e = headingToEastNorthUnit(90);
+    expect(e.xEast).toBeCloseTo(1, 6);
+    expect(e.yNorth).toBeCloseTo(0, 6);
+    const s = headingToEastNorthUnit(180);
+    expect(s.xEast).toBeCloseTo(0, 6);
+    expect(s.yNorth).toBeCloseTo(-1, 6);
   });
 
   it("ENU offset reverses sign when point/anchor swap", () => {

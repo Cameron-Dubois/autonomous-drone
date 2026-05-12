@@ -5,6 +5,9 @@ import { useComms } from "../../src/context/CommsContext";
 import { usePhoneLocation } from "../../src/hooks/usePhoneLocation";
 import { createDefaultTelemetry } from "../../src/protocol/types";
 import { spacing, fontSizes, radii, getPanelDimensions } from "../../src/theme/layout";
+import { TelemetryDroneProvider, useFollowToPhoneNavigation, headingToEastNorthUnit } from "../../src/nav";
+import { useFollowMockController } from "../../src/autonomy";
+import type { FollowState } from "../../src/autonomy";
 
 export default function HomeScreen() {
     const comms = useComms();
@@ -36,14 +39,63 @@ export default function HomeScreen() {
     const droneLat = tel.droneLat ?? 0;
     const droneLon = tel.droneLon ?? 0;
     const droneGpsValid = tel.droneGpsValid && tel.droneLat != null && tel.droneLon != null;
-    const linkLabel =
-        tel.link === "SECURE_LINK"
-            ? droneGpsValid
-                ? "live"
-                : "link OK · awaiting fix"
-            : tel.link === "CONNECTING"
-              ? "connecting…"
-              : "no link";
+    const droneHeadingOk =
+        typeof tel.droneHeadingDeg === "number" && Number.isFinite(tel.droneHeadingDeg);
+    const compassUnit =
+        droneHeadingOk && tel.droneHeadingDeg != null
+            ? headingToEastNorthUnit(tel.droneHeadingDeg)
+            : null;
+    const phoneFixOk = phoneLoc.lat != null && phoneLoc.lon != null;
+    const linkOk = tel.link === "SECURE_LINK";
+    const linkLabel = linkOk
+        ? droneGpsValid
+            ? "live"
+            : "link OK · awaiting fix"
+        : tel.link === "CONNECTING"
+          ? "connecting…"
+          : "no link";
+
+    // Follow-mock pipeline: telemetry -> DroneFix -> NavigationSnapshot -> controller.
+    // NOTE: this hook spins up its own phone-GPS watcher distinct from usePhoneLocation
+    // above; Android merges them into one chip session so it's wasteful but correct.
+    // TODO: unify the two phone-GPS watchers in a future commit.
+    const droneProvider = useMemo(() => new TelemetryDroneProvider(comms), [comms]);
+    const navSnap = useFollowToPhoneNavigation({ droneProvider });
+    const follow = useFollowMockController({ snapshot: navSnap, comms });
+
+    let followWarning: string | null = null;
+    if (!linkOk) followWarning = "No link to drone. Connect on the Connect tab.";
+    else if (!phoneFixOk) followWarning = "Waiting for phone GPS fix…";
+    else if (!droneGpsValid) followWarning = "Waiting for drone GPS fix…";
+    else if (!droneHeadingOk) followWarning = "Waiting for drone compass heading…";
+
+    const canStartFollow = linkOk && phoneFixOk && droneGpsValid && droneHeadingOk;
+
+    const distLabel =
+        navSnap.distancePhoneToDrone_m != null
+            ? `${navSnap.distancePhoneToDrone_m.toFixed(1)} m`
+            : "—";
+    const bearLabel =
+        navSnap.bearingDroneToPhone_deg != null
+            ? `${Math.round(navSnap.bearingDroneToPhone_deg)}°`
+            : "—";
+    const yawErrLabel =
+        navSnap.yawErrorDeg != null
+            ? `${navSnap.yawErrorDeg >= 0 ? "+" : ""}${Math.round(navSnap.yawErrorDeg)}°`
+            : "—";
+
+    const phaseChipColor: Record<FollowState, { bg: string; border: string; fg: string }> = {
+        IDLE: { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.15)", fg: "rgba(255,255,255,0.6)" },
+        ROTATE: { bg: "rgba(245,166,35,0.15)", border: "rgba(245,166,35,0.5)", fg: "#f5a623" },
+        FORWARD: { bg: "rgba(0,242,255,0.15)", border: "rgba(0,242,255,0.5)", fg: "#00f2ff" },
+        HOLD: { bg: "rgba(61,245,122,0.15)", border: "rgba(61,245,122,0.5)", fg: "#3df57a" },
+    };
+    const chipPalette = phaseChipColor[follow.state];
+
+    const onPressFollow = () => {
+        if (follow.running) follow.stop();
+        else if (canStartFollow) follow.start();
+    };
 
     return (
         <View style={styles.root}>
@@ -127,49 +179,135 @@ export default function HomeScreen() {
                         <Text style={styles.phoneSub}>
                             {tel.droneGpsSatellites} sats · fix Q {tel.droneGpsFixQuality}
                             {tel.droneGpsHdop != null ? ` · HDOP ${tel.droneGpsHdop.toFixed(1)}` : ""}
-                            {typeof tel.droneHeadingDeg === "number" && Number.isFinite(tel.droneHeadingDeg)
-                                ? ` · hdg ${Math.round(tel.droneHeadingDeg)}°`
-                                : ""}
+                            {droneHeadingOk ? ` · hdg ${Math.round(tel.droneHeadingDeg as number)}°` : ""}
                             {" · "}
                             {linkLabel}
                         </Text>
                     </View>
 
-                <View style={[styles.telemetry, styles.telemetryDisabled]}>
-                    <Text style={[styles.label, styles.labelDisabled]}>Ground Speed</Text>
-                    <Text style={[styles.big, styles.bigDisabled]}>
-                        {tel.speedKmh}
-                        <Text style={[styles.unit, styles.unitDisabled]}> KM/H</Text>
-                    </Text>
+                    <View style={styles.compassSection}>
+                        <Text style={styles.label}>DRONE COMPASS</Text>
+                        <Text style={styles.phoneSub}>
+                            From drone heading (unit vector: +X east, +Y north)
+                        </Text>
+                        <View style={styles.compassGrid}>
+                            <Text style={styles.compassMonoLabel}>X (E)</Text>
+                            <Text style={styles.compassMonoValue}>
+                                {compassUnit
+                                    ? `${compassUnit.xEast >= 0 ? "+" : ""}${compassUnit.xEast.toFixed(3)}`
+                                    : "—"}
+                            </Text>
+                            <Text style={styles.compassMonoLabel}>Y (N)</Text>
+                            <Text style={styles.compassMonoValue}>
+                                {compassUnit
+                                    ? `${compassUnit.yNorth >= 0 ? "+" : ""}${compassUnit.yNorth.toFixed(3)}`
+                                    : "—"}
+                            </Text>
+                        </View>
+                    </View>
 
-                    <View style={{ height: spacing.xxl }} />
+                    <View style={styles.distanceSection}>
+                        <Text style={styles.label}>DISTANCE TO DRONE</Text>
+                        <Text
+                            style={[
+                                styles.distanceValue,
+                                navSnap.distancePhoneToDrone_m != null
+                                    ? styles.distanceValueLive
+                                    : styles.distanceValueMuted,
+                            ]}
+                        >
+                            {navSnap.distancePhoneToDrone_m != null
+                                ? navSnap.distancePhoneToDrone_m.toFixed(1)
+                                : "—"}
+                            <Text style={styles.distanceUnit}> m</Text>
+                        </Text>
+                        <Text style={styles.phoneSub}>
+                            {navSnap.bearingDroneToPhone_deg != null
+                                ? `bearing ${Math.round(navSnap.bearingDroneToPhone_deg)}°`
+                                : "bearing —"}
+                            {navSnap.yawErrorDeg != null
+                                ? ` · yaw err ${navSnap.yawErrorDeg >= 0 ? "+" : ""}${Math.round(navSnap.yawErrorDeg)}°`
+                                : ""}
+                            {navSnap.distancePhoneToDrone_m == null
+                                ? " · needs both phone + drone GPS"
+                                : ""}
+                        </Text>
+                    </View>
 
-                    <Text style={[styles.label, styles.labelDisabled]}>Current Altitude</Text>
-                    <Text style={[styles.big, styles.bigDisabled]}>
-                        {tel.altM}
-                        <Text style={[styles.unit, styles.unitDisabled]}> M</Text>
-                    </Text>
-                </View>
+                    <View style={styles.followSection}>
+                        <Text style={styles.label}>FOLLOW-MOCK</Text>
+
+                        <View style={styles.followChipRow}>
+                            <View
+                                style={[
+                                    styles.phaseChip,
+                                    { backgroundColor: chipPalette.bg, borderColor: chipPalette.border },
+                                ]}
+                            >
+                                <Text style={[styles.phaseChipText, { color: chipPalette.fg }]}>
+                                    {follow.state}
+                                </Text>
+                            </View>
+                            <Text style={styles.followReason} numberOfLines={1}>
+                                {follow.reason}
+                            </Text>
+                        </View>
+
+                        <View style={styles.followReadouts}>
+                            <Text style={styles.followReadoutItem}>
+                                dist <Text style={styles.followReadoutValue}>{distLabel}</Text>
+                            </Text>
+                            <Text style={styles.followReadoutItem}>
+                                bear <Text style={styles.followReadoutValue}>{bearLabel}</Text>
+                            </Text>
+                            <Text style={styles.followReadoutItem}>
+                                yaw err <Text style={styles.followReadoutValue}>{yawErrLabel}</Text>
+                            </Text>
+                        </View>
+
+                        {followWarning ? (
+                            <Text style={styles.followWarning}>{followWarning}</Text>
+                        ) : null}
+
+                        <View style={styles.motorBarsBlock}>
+                            {[0, 1, 2, 3].map((i) => {
+                                const v = follow.motorThrottles[i];
+                                const pct = Math.max(0, Math.min(100, (v / 255) * 100));
+                                return (
+                                    <View key={i} style={styles.motorBarRow}>
+                                        <Text style={styles.motorLabel}>M{i + 1}</Text>
+                                        <View style={styles.motorBarTrack}>
+                                            <View
+                                                style={[
+                                                    styles.motorBarFill,
+                                                    { width: `${pct}%` },
+                                                ]}
+                                            />
+                                        </View>
+                                        <Text style={styles.motorValue}>{v}</Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+
+                        <Pressable
+                            style={[
+                                styles.btn,
+                                styles.followBtn,
+                                follow.running ? styles.followBtnStop : styles.followBtnStart,
+                                !follow.running && !canStartFollow ? styles.btnDisabled : null,
+                            ]}
+                            onPress={onPressFollow}
+                            disabled={!follow.running && !canStartFollow}
+                            hitSlop={8}
+                        >
+                            <Text style={[styles.btnLabel, follow.running ? styles.followBtnStopLabel : null]}>
+                                {follow.running ? "STOP FOLLOW" : "START FOLLOW"}
+                            </Text>
+                        </Pressable>
+                    </View>
 
                 <View style={styles.controls}>
-                    <Pressable
-                        style={[styles.btn, styles.btnPrimary, styles.btnSpacing, styles.btnDisabled]}
-                        onPress={() => {}}
-                        disabled
-                    >
-                        <Text style={[styles.btnLabel, styles.btnLabelDisabled]}>
-                            Auto-Follow Mode: {tel.followMode ? "ON" : "OFF"}
-                        </Text>
-                    </Pressable>
-
-                    <Pressable style={[styles.btn, styles.btnSpacing, styles.btnDisabled]} onPress={() => {}} disabled>
-                        <Text style={[styles.btnLabel, styles.btnLabelDisabled]}>Ascend</Text>
-                    </Pressable>
-
-                    <Pressable style={[styles.btn, styles.btnSpacing, styles.btnDisabled]} onPress={() => {}} disabled>
-                        <Text style={[styles.btnLabel, styles.btnLabelDisabled]}>Descend</Text>
-                    </Pressable>
-
                     <Pressable
                         style={[styles.btn, { opacity: tel.link === "SECURE_LINK" ? 0.6 : 1 }]}
                         onPress={async () => {
@@ -208,6 +346,140 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
     phoneSection: { marginTop: spacing.xxl },
     droneSection: { marginTop: spacing.xl },
     droneCoordsMuted: { color: "rgba(255,255,255,0.45)" },
+
+    compassSection: { marginTop: spacing.xl },
+    compassGrid: {
+        marginTop: spacing.xs,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        columnGap: spacing.lg,
+        rowGap: spacing.xs,
+    },
+    compassMonoLabel: {
+        width: 56,
+        fontSize: fontSizes.xs,
+        color: "rgba(255,255,255,0.4)",
+        letterSpacing: 1,
+    },
+    compassMonoValue: {
+        minWidth: 72,
+        fontSize: fontSizes.md,
+        fontVariant: ["tabular-nums"],
+        color: "#00f2ff",
+        fontWeight: "600",
+    },
+
+    distanceSection: { marginTop: spacing.xl },
+    distanceValue: {
+        marginTop: spacing.xs,
+        fontSize: fontSizes.xxxl,
+        fontWeight: "800",
+        lineHeight: 76,
+        fontVariant: ["tabular-nums"],
+    },
+    distanceValueLive: { color: "#00f2ff" },
+    distanceValueMuted: { color: "rgba(255,255,255,0.35)" },
+    distanceUnit: {
+        fontSize: fontSizes.lg,
+        fontWeight: "600",
+        color: "rgba(255,255,255,0.5)",
+    },
+
+    followSection: { marginTop: spacing.xl },
+    followChipRow: {
+        marginTop: spacing.xs,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.md,
+    },
+    phaseChip: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: 4,
+        borderRadius: radii.sm,
+        borderWidth: 1,
+    },
+    phaseChipText: {
+        fontSize: fontSizes.xs,
+        fontWeight: "800",
+        letterSpacing: 2,
+    },
+    followReason: {
+        flex: 1,
+        fontSize: fontSizes.xs - 1,
+        color: "rgba(255,255,255,0.45)",
+        letterSpacing: 0.3,
+    },
+    followReadouts: {
+        marginTop: spacing.md,
+        flexDirection: "row",
+        gap: spacing.lg,
+        flexWrap: "wrap",
+    },
+    followReadoutItem: {
+        fontSize: fontSizes.xs,
+        color: "rgba(255,255,255,0.4)",
+        letterSpacing: 1,
+    },
+    followReadoutValue: {
+        color: "white",
+        fontVariant: ["tabular-nums"],
+    },
+    followWarning: {
+        marginTop: spacing.sm,
+        fontSize: fontSizes.xs,
+        color: "#f5a623",
+        letterSpacing: 0.5,
+    },
+    motorBarsBlock: {
+        marginTop: spacing.md,
+        gap: 6,
+    },
+    motorBarRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.sm,
+    },
+    motorLabel: {
+        fontSize: fontSizes.xs,
+        fontWeight: "700",
+        color: "rgba(255,255,255,0.45)",
+        width: 22,
+        letterSpacing: 0.5,
+    },
+    motorBarTrack: {
+        flex: 1,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: "rgba(255,255,255,0.06)",
+        overflow: "hidden",
+    },
+    motorBarFill: {
+        height: "100%",
+        backgroundColor: "#00f2ff",
+    },
+    motorValue: {
+        width: 30,
+        textAlign: "right",
+        fontSize: fontSizes.xs - 1,
+        color: "rgba(255,255,255,0.6)",
+        fontVariant: ["tabular-nums"],
+    },
+    followBtn: {
+        marginTop: spacing.lg,
+        minHeight: 64,
+    },
+    followBtnStart: {
+        borderColor: "rgba(0,242,255,0.35)",
+        backgroundColor: "rgba(0,242,255,0.08)",
+    },
+    followBtnStop: {
+        borderColor: "rgba(255,61,61,0.6)",
+        backgroundColor: "rgba(255,61,61,0.18)",
+    },
+    followBtnStopLabel: {
+        color: "#ff7878",
+    },
     phoneCoords: { fontVariant: ["tabular-nums"] },
     phoneSub: {
         marginTop: 6,
@@ -225,14 +497,6 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
     signalBar: { width: 3, borderRadius: 1, backgroundColor: "rgba(255,255,255,0.2)" },
     signalBarActive: { backgroundColor: "#00f2ff" },
 
-    telemetry: { marginTop: 80 },
-    telemetryDisabled: { opacity: 0.45 },
-    labelDisabled: { color: "rgba(255,255,255,0.25)" },
-    bigDisabled: { color: "rgba(255,255,255,0.35)" },
-    unitDisabled: { color: "rgba(255,255,255,0.3)" },
-    big: { fontSize: fontSizes.xxxl, fontWeight: "800", color: "white", lineHeight: 76 },
-    unit: { fontSize: fontSizes.lg, color: "rgba(255,255,255,0.6)" },
-
     scrollView: { flex: 1 },
     scrollContent: { paddingBottom: spacing.xxxl + 40 },
     controls: {
@@ -247,14 +511,7 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         alignItems: "center",
         justifyContent: "center",
     },
-    btnPrimary: {
-        minHeight: 88,
-        borderColor: "rgba(255,255,255,0.15)",
-        backgroundColor: "rgba(255,255,255,0.05)",
-    },
     btnLabel: { fontSize: fontSizes.sm, fontWeight: "800", letterSpacing: 2, color: "rgba(255,255,255,0.7)" },
-    btnSpacing: { marginBottom: spacing.lg },
     btnDisabled: { opacity: 0.45 },
-    btnLabelDisabled: { color: "rgba(255,255,255,0.35)" },
 });
 };

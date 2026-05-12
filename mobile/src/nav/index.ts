@@ -13,6 +13,7 @@ export { DEFAULT_NAV_CONFIG } from "./types";
 export {
   enuFromAnchor,
   haversineDistanceM,
+  headingToEastNorthUnit,
   initialBearingDeg,
   isValidLatLon,
   toDegrees,
