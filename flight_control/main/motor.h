@@ -55,6 +55,9 @@ void motor_set_speed(motor_t motor, int duty);
 void motor_set_on_off(motor_t motor, bool on);
 void motor_set_direction(motor_t motor, bool forward);
 
+/** Effective PWM duty 0..1023 actually driving the ESC (0 if motor marked off). */
+int motor_get_commanded_duty(motor_t motor);
+
 void motors_stop_all(void);
 
 #ifdef __cplusplus

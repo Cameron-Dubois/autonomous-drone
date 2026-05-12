@@ -4,6 +4,7 @@ idf_component_register(
         "ble_stack.c"
         "ble_misc.c"
         "motor_stub.c"
+        "bmp280_baro.c"
         "../../gps_bringup/main/gps_nmea.c"
         "../../gps_bringup/main/compass_mag.c"
         "../../drone_ble/main/gatt_svr.c"

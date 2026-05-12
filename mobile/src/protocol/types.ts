@@ -40,7 +40,7 @@ const CMD_TYPE_TO_ID: Record<string, number> = {
   FOLLOW_TOGGLE:  DroneCmd.FOLLOW_TOGGLE,
   TAKEOFF:        DroneCmd.ARM,
   LAND:           DroneCmd.DISARM,
-  HOVER:          DroneCmd.NOP,
+  HOVER:          DroneCmd.ARM,
   RETURN_HOME:    DroneCmd.NOP,
 };
 
@@ -102,6 +102,8 @@ export type Telemetry = {
   droneGpsHdop: number | null;
   /** Drone-reported heading in degrees [0,360); semantics (true vs magnetic) defined by firmware. null when unknown. */
   droneHeadingDeg: number | null;
+  /** True when the on-drone barometer is responding; `altM` is meaningful only when this is true. */
+  droneBaroOk: boolean;
 };
 
 /** Initial / disconnected telemetry; use everywhere a full `Telemetry` object is required. */
@@ -121,5 +123,6 @@ export function createDefaultTelemetry(): Telemetry {
     droneGpsSatellites: 0,
     droneGpsHdop: null,
     droneHeadingDeg: null,
+    droneBaroOk: false,
   };
 }

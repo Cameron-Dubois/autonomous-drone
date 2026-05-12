@@ -198,6 +198,13 @@ void motor_set_on_off(motor_t motor, bool on)
     motor_apply_duty(motor);
 }
 
+int motor_get_commanded_duty(motor_t motor)
+{
+    if ((int)motor < 0 || (int)motor >= MOTOR_COUNT)
+        return 0;
+    return motor_on[motor] ? motor_duty[motor] : 0;
+}
+
 void motor_set_direction(motor_t motor, bool forward)
 {
     (void)motor;

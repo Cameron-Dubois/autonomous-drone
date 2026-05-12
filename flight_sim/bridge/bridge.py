@@ -315,6 +315,7 @@ class QuadSim:
             self.wind_gust = np.zeros(3)
 
     # ------------------------------------------------------------------
+    # `duty` / thrust order: [M1..M4] = [BL, FL, BR, FR] — matches hil_motor_pkt_t / firmware.
     def step(self, duty, dt):
         if self.crashed:
             return
@@ -340,12 +341,12 @@ class QuadSim:
         # ---- rotation matrix (pre-update, used for everything this step) ----
         R = euler_to_R(self.phi, self.theta, self.psi)
 
-        # ---- torques ----
-        tau_roll  = self.arm_roll * (t[0] + t[2] - t[1] - t[3])
-        tau_pitch = self.arm_pitch * (t[0] + t[1] - t[2] - t[3])
+        # ---- torques (BL/FL/BR/FR = indices 0..3) ----
+        tau_roll  = self.arm_roll * (t[0] + t[1] - t[2] - t[3])
+        tau_pitch = self.arm_pitch * (t[0] + t[2] - t[1] - t[3])
         tau_yaw   = self.yaw_k * (t[1] + t[2] - t[0] - t[3])
 
-        # gyroscopic precession: props 0,3 CW (-H), props 1,2 CCW (+H)
+        # gyroscopic precession: M1/M4 CCW, M2/M3 CW → H_z ∝ -ω0+ω1+ω2-ω3
         max_prop_rad_s = self.prop_max_rpm * 2.0 * np.pi / 60.0
         max_t_eff = max(self.max_thrust * v_scale, 1e-9)
         rpm_norm  = np.sqrt(np.clip(self.thrust_actual / max_t_eff, 0.0, 1.0))
@@ -374,9 +375,12 @@ class QuadSim:
             tau_roll  += CP_OFFSET_Z * F_aero_body[1]
             tau_pitch -= CP_OFFSET_Z * F_aero_body[0]
 
-        # ---- rotational dynamics ----
-        self.p += ((tau_roll  - self.rot_drag * self.p) / self.Ixx) * dt
-        self.q += ((tau_pitch - self.rot_drag * self.q) / self.Iyy) * dt
+        # Rotational dynamics: τ_roll / τ_pitch are geometric (left–right vs back–front).
+        # The ESP32 X-mixer maps pitch PID -> mostly τ_roll and roll PID -> mostly τ_pitch,
+        # while fusion integrates gyro_y into angle_pitch and gyro_x into angle_roll.
+        # Apply those moments to the body rates that match the firmware loop (q <- τ_roll, p <- τ_pitch).
+        self.p += ((tau_pitch - self.rot_drag * self.p) / self.Ixx) * dt
+        self.q += ((tau_roll  - self.rot_drag * self.q) / self.Iyy) * dt
         self.r += ((tau_yaw   - self.rot_drag * self.r) / self.Izz) * dt
 
         self.phi   = np.clip(self.phi   + self.p * dt, -np.pi/2, np.pi/2)
@@ -712,10 +716,10 @@ def main():
     # -- motors --
     ax_mot.set_ylabel("Motor duty")
     ax_mot.set_ylim(0, 1100)
-    ln_m1, = ax_mot.plot([], [], label="M1 (FL)")
-    ln_m2, = ax_mot.plot([], [], label="M2 (FR)")
-    ln_m3, = ax_mot.plot([], [], label="M3 (BL)")
-    ln_m4, = ax_mot.plot([], [], label="M4 (BR)")
+    ln_m1, = ax_mot.plot([], [], label="M1 (BL)")
+    ln_m2, = ax_mot.plot([], [], label="M2 (FL)")
+    ln_m3, = ax_mot.plot([], [], label="M3 (BR)")
+    ln_m4, = ax_mot.plot([], [], label="M4 (FR)")
     leg_mot = ax_mot.legend(loc="upper right")
 
     # -- altitude / drift --

@@ -34,6 +34,9 @@ function parseJson(trimmed: string, result: Partial<Telemetry>): void {
     result.rssiBars = Math.max(0, Math.min(4, Math.round(data.rssiBars))) as Telemetry["rssiBars"];
   if (typeof data.followMode === "boolean") result.followMode = data.followMode;
 
+  const baroOk = pickOptionalBool(data, ["droneBaroOk", "baroOk"]);
+  if (baroOk !== undefined) result.droneBaroOk = baroOk;
+
   applyJsonGeo(data, result);
 }
 
@@ -173,6 +176,11 @@ function parseTel(trimmed: string, result: Partial<Telemetry>): Partial<Telemetr
       case "course":
       case "yaw":
         if (!isNaN(vFloat)) result.droneHeadingDeg = normalizeHeadingDeg(vFloat);
+        break;
+      case "baro":
+      case "baro_ok":
+      case "baro_ready":
+        result.droneBaroOk = valRaw === "1" || /^true$/i.test(valRaw) || /^yes$/i.test(valRaw);
         break;
       default:
         break;
