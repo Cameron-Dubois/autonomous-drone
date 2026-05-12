@@ -27,18 +27,24 @@ export type UsePhoneLocationOptions = {
   enabled?: boolean;
   timeIntervalMs?: number;
   distanceIntervalM?: number;
+  accuracy?: Location.LocationAccuracy;
 };
 
 /**
  * Foreground GNSS fixes for showing the handset next to drone telemetry.
  * Requests “when in use” permission once on mount when still undetermined.
+ *
+ * Tuned for open-sky maximum accuracy: `BestForNavigation` keeps the GPS chip
+ * on full-time (Android `PRIORITY_HIGH_ACCURACY` at the highest sample rate),
+ * with no distance gate so updates flow continuously every ~2 s.
  */
 export function usePhoneLocation(opts: UsePhoneLocationOptions = {}): PhoneLocationSnapshot & {
   retryPermission: () => void;
 } {
   const enabled = opts.enabled !== false;
-  const timeIntervalMs = opts.timeIntervalMs ?? 3000;
-  const distanceIntervalM = opts.distanceIntervalM ?? 5;
+  const timeIntervalMs = opts.timeIntervalMs ?? 2000;
+  const distanceIntervalM = opts.distanceIntervalM ?? 0;
+  const accuracy = opts.accuracy ?? Location.Accuracy.BestForNavigation;
 
   const [snap, setSnap] = useState<PhoneLocationSnapshot>(initial);
   const [retryKey, setRetryKey] = useState(0);
@@ -89,11 +95,30 @@ export function usePhoneLocation(opts: UsePhoneLocationOptions = {}): PhoneLocat
           error: null,
         }));
 
+        // Cold-start primer: kicks the GPS chip into high-accuracy mode and seeds
+        // the UI with the freshest available fix before the watcher's first tick.
+        void Location.getCurrentPositionAsync({ accuracy })
+          .then((loc) => {
+            if (cancelled) return;
+            setSnap({
+              permission: "granted",
+              lat: loc.coords.latitude,
+              lon: loc.coords.longitude,
+              accuracyM: loc.coords.accuracy ?? null,
+              timestampMs: loc.timestamp,
+              error: null,
+            });
+          })
+          .catch(() => {
+            // No fix yet — the watcher will deliver one shortly.
+          });
+
         subscription = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.Balanced,
+            accuracy,
             timeInterval: timeIntervalMs,
             distanceInterval: distanceIntervalM,
+            mayShowUserSettingsDialog: true,
           },
           (loc) => {
             if (cancelled) return;
@@ -119,7 +144,7 @@ export function usePhoneLocation(opts: UsePhoneLocationOptions = {}): PhoneLocat
       cancelled = true;
       subscription?.remove();
     };
-  }, [enabled, retryKey, timeIntervalMs, distanceIntervalM]);
+  }, [enabled, retryKey, timeIntervalMs, distanceIntervalM, accuracy]);
 
   return { ...snap, retryPermission };
 }

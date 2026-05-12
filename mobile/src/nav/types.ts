@@ -12,8 +12,10 @@ export type GpsFix = {
   accuracyM?: number | null;
   //meters if present
   altitudeM?: number | null;
-  //degrees true 0..360 if present
+  //course over ground (direction of motion) deg 0..360 if present — only valid while moving
   courseDeg?: number | null;
+  //compass heading (direction of nose facing) deg 0..360 if present — valid at rest, used for yaw error
+  headingDeg?: number | null;
   //m/s if present
   speedMps?: number | null;
 };
@@ -54,6 +56,9 @@ export type NavigationSnapshot = {
   distancePhoneToDrone_m: number | null;
   //true deg drone toward phone; null if unknown
   bearingDroneToPhone_deg: number | null;
+  //wrap180(bearing - droneHeading) in deg; null if bearing or drone heading missing.
+  //sign: + means phone is to the right of where the drone is facing (yaw CW to align).
+  yawErrorDeg: number | null;
   //last phone fix that passed checks
   phoneFix: PhoneFix | null;
   //last drone fix that passed checks
