@@ -11,6 +11,7 @@ const INITIAL_SNAPSHOT: NavigationSnapshot = {
   intent: "AWAITING_PHONE_FIX",
   distancePhoneToDrone_m: null,
   bearingDroneToPhone_deg: null,
+  yawErrorDeg: null,
   phoneFix: null,
   droneFix: null,
   withinArrival: false,

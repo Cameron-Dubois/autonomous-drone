@@ -10,6 +10,11 @@ import {
   type PhoneFix,
 } from "./types";
 
+//wrap a signed deg delta to [-180, 180]. + means yaw CW to align.
+function wrap180(deg: number): number {
+  return ((deg + 540) % 360) - 180;
+}
+
 export type NavigatorInputs = {
   phoneFix: PhoneFix | null;
   droneFix: DroneFix | null;
@@ -39,6 +44,16 @@ export function createFollowToPhoneNavigator(
         bearing = initialBearingDeg(cleanDrone, cleanPhone);
       }
 
+      let yawError: number | null = null;
+      if (
+        bearing != null &&
+        cleanDrone &&
+        typeof cleanDrone.headingDeg === "number" &&
+        Number.isFinite(cleanDrone.headingDeg)
+      ) {
+        yawError = wrap180(bearing - cleanDrone.headingDeg);
+      }
+
       const withinArrival =
         distance != null &&
         distance <= config.arrivalRadiusM + (prevWithinArrival ? config.arrivalHysteresisM : 0);
@@ -57,6 +72,7 @@ export function createFollowToPhoneNavigator(
         intent,
         distancePhoneToDrone_m: distance,
         bearingDroneToPhone_deg: bearing,
+        yawErrorDeg: yawError,
         phoneFix: cleanPhone,
         droneFix: cleanDrone,
         withinArrival,

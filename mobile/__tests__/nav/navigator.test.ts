@@ -10,10 +10,16 @@ const phoneAt = (lat: number, lon: number, accuracyM: number | null = 5, ageMs =
   accuracyM,
 });
 
-const droneAt = (lat: number, lon: number, ageMs = 0): DroneFix => ({
+const droneAt = (
+  lat: number,
+  lon: number,
+  ageMs = 0,
+  headingDeg: number | null = null
+): DroneFix => ({
   lat,
   lon,
   timestampMs: NOW - ageMs,
+  headingDeg,
 });
 
 const CONFIG: NavigationConfig = {
@@ -119,5 +125,72 @@ describe("FollowToPhoneNavigator", () => {
       nowMs: NOW,
     });
     expect(snap.intent).toBe("AWAITING_PHONE_FIX");
+  });
+
+  it("yawErrorDeg is null when drone heading missing", () => {
+    const nav = createFollowToPhoneNavigator(CONFIG);
+    const snap = nav.evaluate({
+      phoneFix: phoneAt(37.0001, -122),
+      droneFix: droneAt(37, -122), //headingDeg null
+      nowMs: NOW,
+    });
+    expect(snap.bearingDroneToPhone_deg).not.toBeNull();
+    expect(snap.yawErrorDeg).toBeNull();
+  });
+
+  it("yawErrorDeg is null when bearing missing (no drone fix)", () => {
+    const nav = createFollowToPhoneNavigator(CONFIG);
+    const snap = nav.evaluate({
+      phoneFix: phoneAt(37, -122),
+      droneFix: null,
+      nowMs: NOW,
+    });
+    expect(snap.yawErrorDeg).toBeNull();
+  });
+
+  it("yawErrorDeg +90 when phone is east of drone facing north", () => {
+    const nav = createFollowToPhoneNavigator(CONFIG);
+    const snap = nav.evaluate({
+      phoneFix: phoneAt(0, 0.001), //slightly east
+      droneFix: droneAt(0, 0, 0, 0), //facing north (heading = 0)
+      nowMs: NOW,
+    });
+    expect(snap.bearingDroneToPhone_deg!).toBeCloseTo(90, 1);
+    expect(snap.yawErrorDeg!).toBeCloseTo(90, 1);
+  });
+
+  it("yawErrorDeg -90 when phone is west of drone facing north", () => {
+    const nav = createFollowToPhoneNavigator(CONFIG);
+    const snap = nav.evaluate({
+      phoneFix: phoneAt(0, -0.001), //slightly west
+      droneFix: droneAt(0, 0, 0, 0), //facing north
+      nowMs: NOW,
+    });
+    expect(snap.bearingDroneToPhone_deg!).toBeCloseTo(270, 1);
+    expect(snap.yawErrorDeg!).toBeCloseTo(-90, 1);
+  });
+
+  it("yawErrorDeg wraps to [-180, 180]: drone facing 350 deg, phone at bearing 10 deg -> +20", () => {
+    const nav = createFollowToPhoneNavigator(CONFIG);
+    //phone slightly north (bearing ~0); drone heading 350 -> yawError = wrap180(0 - 350) = +10
+    const snap = nav.evaluate({
+      phoneFix: phoneAt(0.001, 0),
+      droneFix: droneAt(0, 0, 0, 350),
+      nowMs: NOW,
+    });
+    expect(snap.bearingDroneToPhone_deg!).toBeCloseTo(0, 1);
+    expect(snap.yawErrorDeg!).toBeCloseTo(10, 1);
+  });
+
+  it("yawErrorDeg wraps to [-180, 180]: drone facing 10 deg, phone at bearing 350 -> -20", () => {
+    const nav = createFollowToPhoneNavigator(CONFIG);
+    //phone slightly NW so bearing wraps near 350
+    const snap = nav.evaluate({
+      phoneFix: phoneAt(0.001, -0.0001763), //rough NNW so bearing ~350
+      droneFix: droneAt(0, 0, 0, 10),
+      nowMs: NOW,
+    });
+    expect(snap.yawErrorDeg!).toBeLessThan(0);
+    expect(snap.yawErrorDeg!).toBeGreaterThan(-30);
   });
 });

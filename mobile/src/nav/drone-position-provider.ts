@@ -63,7 +63,10 @@ export class TelemetryDroneProvider<T extends TelemetryWithDroneGps> implements 
     return this.source.subscribeTelemetry((t) => {
       if (t.droneGpsValid === false) return cb(null);
       if (t.droneLat == null || t.droneLon == null) return cb(null);
-      const courseDeg =
+      // Firmware emits a magnetometer reading as `droneHeadingDeg`, which is a
+      // compass heading (nose direction), not course-over-ground. Map it to
+      // `headingDeg` so the navigator can compute yaw error at rest.
+      const headingDeg =
         typeof t.droneHeadingDeg === "number" && Number.isFinite(t.droneHeadingDeg)
           ? t.droneHeadingDeg
           : null;
@@ -71,7 +74,8 @@ export class TelemetryDroneProvider<T extends TelemetryWithDroneGps> implements 
         lat: t.droneLat,
         lon: t.droneLon,
         timestampMs: this.clock(),
-        courseDeg,
+        headingDeg,
+        courseDeg: null,
       });
     });
   }
