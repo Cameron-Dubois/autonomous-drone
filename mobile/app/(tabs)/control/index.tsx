@@ -138,7 +138,6 @@ export default function Control() {
     }, []);
 
     const THROTTLE_0 = 0;
-    const THROTTLE_10 = Math.round(255 * 0.1);
 
     const percentToThrottle = (p: number) => Math.round(255 * Math.min(100, Math.max(0, p)) / 100);
 
@@ -266,11 +265,13 @@ export default function Control() {
                     </View>
                     <View style={styles.actionRow}>
                         <Pressable style={[styles.btn, styles.btnSmall]} onPress={async () => {
-                            setMotorPercents([10, 10, 10, 10]);
-                            await sendMotors(
-                                [DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_2, DroneCmd.SET_MOTOR_3, DroneCmd.SET_MOTOR_4],
-                                THROTTLE_10,
-                            );
+                            try {
+                                /* flight_control: HOVER = ARM + onboard throttle ramp; SET_MOTOR is ignored while armed. */
+                                await comms.send({ type: "HOVER" });
+                                setMotorPercents([100, 100, 100, 100]);
+                            } catch (e) {
+                                console.log("Hover send failed:", e);
+                            }
                         }}>
                             <Text style={styles.btnLabel}>Hover</Text>
                         </Pressable>
