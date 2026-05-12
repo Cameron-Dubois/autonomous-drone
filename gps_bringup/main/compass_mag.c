@@ -46,7 +46,9 @@ static int16_t s_prev_x_raw = 0;
 static int16_t s_prev_y_raw = 0;
 
 /* Reject clearly implausible single-sample jumps (typically I2C glitch/outlier). */
-#define MAG_MAX_STEP_ABS 600
+#ifndef COMPASS_MAG_MAX_STEP_ABS
+#define COMPASS_MAG_MAX_STEP_ABS 2800
+#endif
 
 /* i2c_master_* xfer_timeout_ms is in milliseconds (not FreeRTOS ticks). */
 #define I2C_XFER_TIMEOUT_MS  I2C_TIMEOUT_MS
@@ -160,10 +162,10 @@ static void update_debug_xy(int16_t x, int16_t y)
         int dy_step = (int)y - (int)s_prev_y_raw;
         if (dx_step < 0) dx_step = -dx_step;
         if (dy_step < 0) dy_step = -dy_step;
-        if (dx_step > MAG_MAX_STEP_ABS || dy_step > MAG_MAX_STEP_ABS) {
+        if (dx_step > COMPASS_MAG_MAX_STEP_ABS || dy_step > COMPASS_MAG_MAX_STEP_ABS) {
             ESP_LOGW(TAG,
-                     "Ignoring compass outlier sample x=%d y=%d (step dx=%d dy=%d)",
-                     (int)x, (int)y, dx_step, dy_step);
+                     "Ignoring compass outlier sample x=%d y=%d (step dx=%d dy=%d, max=%d)",
+                     (int)x, (int)y, dx_step, dy_step, COMPASS_MAG_MAX_STEP_ABS);
             return;
         }
     }
