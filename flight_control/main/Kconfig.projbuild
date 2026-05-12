@@ -31,66 +31,34 @@ menu "ICM-42670-P IMU Configuration"
 
 endmenu
 
-menu "Motor Configuration (brushless ESC PWM)"
+menu "Motor Configuration (DSHOT300)"
 
     config MOTOR_1_PWM_GPIO
-        int "Motor 1 ESC signal GPIO"
+        int "Motor 1 DSHOT signal GPIO"
         default 3
         range 0 21
         help
-            PWM signal output to ESC channel 1 (e.g. GPIO3 on DevKit-RUST-2).
+            DSHOT300 line to ESC 1 (legacy symbol name: *_PWM_GPIO).
 
     config MOTOR_2_PWM_GPIO
-        int "Motor 2 ESC signal GPIO"
+        int "Motor 2 DSHOT signal GPIO"
         default 4
         range 0 21
         help
-            PWM signal output to ESC channel 2.
+            DSHOT line to ESC 2.
 
     config MOTOR_3_PWM_GPIO
-        int "Motor 3 ESC signal GPIO"
+        int "Motor 3 DSHOT signal GPIO"
         default 5
         range 0 21
         help
-            PWM signal output to ESC channel 3.
+            DSHOT line to ESC 3.
 
     config MOTOR_4_PWM_GPIO
-        int "Motor 4 ESC signal GPIO"
+        int "Motor 4 DSHOT signal GPIO"
         default 6
         range 0 21
         help
-            PWM signal output to ESC channel 4.
-
-    config ESC_PWM_FREQ_HZ
-        int "ESC PWM frame rate (Hz)"
-        default 490
-        range 50 4000
-        help
-            PWM update rate. 490 Hz is the de-facto standard for FPV ESCs
-            running BLHeli_S / BLHeli_32 / AM32 firmware (e.g. Aero Selfie
-            45A 4in1) and is what Betaflight / iNav use by default. Drop to
-            50 Hz only for older analog/servo ESCs that explicitly require
-            it. Note: at 13-bit duty resolution the LEDC peripheral on the
-            ESP32-C3 can drive up to ~4.8 kHz, so OneShot125-style rates
-            need a different driver (RMT or MCPWM).
-
-    config ESC_PULSE_MIN_US
-        int "ESC minimum pulse width (µs) — disarmed / idle"
-        default 1000
-        range 800 1500
-        help
-            Pulse width that the ESC interprets as "throttle low / armed
-            idle". Standard hobby PWM = 1000 µs. Some ESCs prefer 1040 µs
-            or higher to leave a dead-band — match this to whatever
-            min-throttle your ESC was calibrated to.
-
-    config ESC_PULSE_MAX_US
-        int "ESC maximum pulse width (µs) — full throttle"
-        default 2000
-        range 1500 2500
-        help
-            Pulse width for full throttle. Standard hobby PWM = 2000 µs.
-            Match this to the max value your ESC is calibrated to (some
-            BLHeli_S endpoints sit at 1960 µs).
+            DSHOT line to ESC 4.
 
 endmenu

@@ -40,6 +40,7 @@ describe("createHybridComms", () => {
     const h = createHybridComms(inner);
     expect(isHybridComms(h)).toBe(true);
     expect(() => h.syncBleFromExternalConnection()).not.toThrow();
+    expect(() => h.notifyBleDisconnected()).not.toThrow();
   });
 
   it("routes sendBytes to BLE when connected", async () => {

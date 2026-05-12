@@ -6,10 +6,10 @@
 import type { DroneComms, TelemetryCallback } from "./comms";
 import { buildCommandBytes, createDefaultTelemetry, type Command, type Telemetry } from "../protocol/types";
 import { parseBleTelemetryPayload } from "../protocol/telemetry-parse";
-import { getBleClient } from "./BLE";
+import { ensureBleConnected, getBleClient } from "./BLE";
 
 const BLE_ATTACH_POLL_MS = 900;
-/** Must be below flight_control LINK_TIMEOUT_MS (1500) so link-loss failsafe does not fire between user actions. */
+/** Should stay well below flight_control LINK_TIMEOUT_MS (THROTTLE_RAMP_MS + 4000). */
 const BLE_HEARTBEAT_MS = 800;
 
 function mergeTelemetry(prev: Telemetry, patch: Partial<Telemetry>): Telemetry {
@@ -25,6 +25,8 @@ export function stripLinkFromPatch(patch: Partial<Telemetry>): Partial<Telemetry
 export type HybridComms = DroneComms & {
   /** Call after Connect tab establishes a BLE session so telemetry notify can attach. */
   syncBleFromExternalConnection(): void;
+  /** Call when the app tears down the BLE GATT session (Connect → Disconnect). */
+  notifyBleDisconnected(): void;
 };
 
 export function createHybridComms(inner: DroneComms): HybridComms {
@@ -119,8 +121,16 @@ export function createHybridComms(inner: DroneComms): HybridComms {
   const sendBytes = async (bytes: Uint8Array): Promise<void> => {
     try {
       const client = getBleClient();
+      if (!client.getConnectedDeviceId()) {
+        await ensureBleConnected();
+      }
       if (client.getConnectedDeviceId()) {
         await client.sendCommand(bytes);
+        /* flight_control disarms if no BLE traffic for LINK_TIMEOUT_MS — Control tab often
+         * has zero telemetry subscribers, so poll+heartbeat must not depend on Home alone. */
+        startPoll();
+        startBleHeartbeat();
+        tryAttachBleTelemetry();
         return;
       }
     } catch {
@@ -150,23 +160,44 @@ export function createHybridComms(inner: DroneComms): HybridComms {
       return () => {
         hybridListeners.delete(cb);
         if (hybridListeners.size === 0) {
-          stopPoll();
-          stopBleHeartbeat();
-          detachBle();
           stopInnerBridge();
+          /* Keep BLE poll+heartbeat while GATT is up so ARM isn't killed by link timeout
+           * when the user leaves Home for Connect/Control only. */
+          try {
+            if (!getBleClient().getConnectedDeviceId()) {
+              stopPoll();
+              stopBleHeartbeat();
+              detachBle();
+            }
+          } catch {
+            stopPoll();
+            stopBleHeartbeat();
+            detachBle();
+          }
         }
       };
     },
 
     syncBleFromExternalConnection() {
       detachBle();
+      startPoll();
+      startBleHeartbeat();
       tryAttachBleTelemetry();
+    },
+
+    notifyBleDisconnected() {
+      stopPoll();
+      stopBleHeartbeat();
+      detachBle();
     },
   };
 }
 
 export function isHybridComms(c: DroneComms): c is HybridComms {
-  return typeof (c as HybridComms).syncBleFromExternalConnection === "function";
+  return (
+    typeof (c as HybridComms).syncBleFromExternalConnection === "function" &&
+    typeof (c as HybridComms).notifyBleDisconnected === "function"
+  );
 }
 
 /** Flip to `false` to restore Wi‑Fi-only comms without code removal. */

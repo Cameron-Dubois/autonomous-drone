@@ -5,10 +5,10 @@
 // ---------------------------------------------------------------------------
 //  TETHERED BRING-UP CHECKLIST  (do these in order before untethered flight)
 // ---------------------------------------------------------------------------
-//  Step 1: PWM motor sanity check
+//  Step 1: DSHOT motor sanity check
 //      - Confirm flight_control/main/CMakeLists.txt builds main_motor_test.c.
-//      - Flash, hear ESC arm tones, verify each M1..M4 spins and turns the
-//        direction you saved in BLHeli via DSHOT cmd 21 (motor_tests project).
+//      - Flash, hear ESC init, verify each M1..M4 spins (motor_tests uses the
+//        same DSHOT300 driver as this firmware).
 //
 //  Step 2: IMU sanity check
 //      - Swap CMakeLists to main_imu_test.c, flash, watch the gyro/accel
@@ -157,8 +157,12 @@ static bool g_bench_active = false;
 // Last time any command was received from the mobile app.
 // Used as a link-loss failsafe: if we're armed (or bench-active) and nothing
 // has come in for LINK_TIMEOUT_MS, we disarm and stop all motors.
+//
+// This must stay *above* THROTTLE_RAMP_MS: tether mode ramps over 2 s while
+// older app builds may only send ARM once (no periodic HEARTBEAT). A 1.5 s
+// timeout disarmed before any meaningful duty was reached.
 static atomic_int_fast64_t g_last_link_us = ATOMIC_VAR_INIT(0);
-#define LINK_TIMEOUT_MS  1500
+#define LINK_TIMEOUT_MS  (THROTTLE_RAMP_MS + 4000)
 
 static pid_ctrl_t pid_pitch;
 static pid_ctrl_t pid_roll;
@@ -175,6 +179,30 @@ static int clamp_duty(int val)
     return val;
 }
 
+/** Advance g_throttle toward HOVER_THROTTLE at THROTTLE_RAMP_MS shape (one loop tick). */
+static void throttle_ramp_step(void)
+{
+    if (g_throttle < HOVER_THROTTLE) {
+        int step = (HOVER_THROTTLE * FUSION_INTERVAL_MS) / THROTTLE_RAMP_MS;
+        if (step < 1) step = 1;
+        g_throttle += step;
+        if (g_throttle > HOVER_THROTTLE)
+            g_throttle = HOVER_THROTTLE;
+    }
+}
+
+/** Equal open-loop thrust on all motors (no attitude loop). Used when IMU read fails
+ *  but we are still below IMU_FAIL_LIMIT so tethered bring-up can verify spin. */
+static void apply_equal_armed_throttle(void)
+{
+    throttle_ramp_step();
+    int t = clamp_duty(g_throttle);
+    motor_set_speed(MOTOR_1, t);
+    motor_set_speed(MOTOR_2, t);
+    motor_set_speed(MOTOR_3, t);
+    motor_set_speed(MOTOR_4, t);
+}
+
 static void arm(void)
 {
     g_armed    = true;
@@ -187,6 +215,9 @@ static void arm(void)
 
     for (int i = 0; i < MOTOR_COUNT; i++)
         motor_set_on_off((motor_t)i, true);
+
+    /* Re-stamp link time when flight state arms so link-loss window starts here. */
+    atomic_store(&g_last_link_us, esp_timer_get_time());
 
     ESP_LOGW(TAG, ">>> ARMED — motors enabled, throttle ramping to %d", HOVER_THROTTLE);
 }
@@ -269,19 +300,7 @@ void app_main(void)
         return;
     }
 
-    // --- Motors ---
-    // motors_init() configures LEDC and starts driving the idle pulse on every
-    // ESC channel. motors_wait_arm_ready() then blocks for ~3 s while the ESCs
-    // observe that idle pulse and run their internal arming sequence — without
-    // this hold, BLHeli_S/_32/AM32 ESCs will beep at boot but silently refuse
-    // to spin the motor when throttle commands arrive later.
-    motors_init();
-    motors_wait_arm_ready();
-
-    // --- BLE command server ---
-    // Brings up NimBLE, advertises as "DroneBLE", and routes ARM / DISARM /
-    // ESTOP / HEARTBEAT into the request flags above. Mobile app already
-    // speaks this protocol against the drone_ble firmware — no app changes.
+    // --- BLE first so NimBLE can sync/advertise while DSHOT init runs (see motor.c). ---
     ble_command_callbacks_t cbs = {
         .on_arm        = ble_on_arm,
         .on_disarm     = ble_on_disarm,
@@ -294,6 +313,11 @@ void app_main(void)
         ESP_LOGE(TAG, "BLE init failed (%s) — cannot ARM (fix RF stack / wiring)",
                  esp_err_to_name(ble_ret));
     }
+
+    // --- Motors (DSHOT): busy init + high-rate pump must not run before BLE is up or it can
+    //     starve the NimBLE host / task watchdog and the phone never sees DroneBLE. ---
+    motors_init();
+    motors_wait_arm_ready();
 
     // --- PIDs ---
     pid_pitch = (pid_ctrl_t){
@@ -361,7 +385,7 @@ void app_main(void)
                 arm();
         }
 
-        /* Smoothly reduce PWM toward idle so props decelerate gently (avoids
+        /* Smoothly reduce DSHOT throttle toward idle so props decelerate gently (avoids
          * shock unloading self-tightening nuts). Runs even if IMU fails later. */
         if (g_spool_remaining > 0) {
             float scale = (float)g_spool_remaining / (float)MOTOR_RAMP_DOWN_TICKS;
@@ -423,6 +447,18 @@ void app_main(void)
             if (g_armed && g_imu_fails >= IMU_FAIL_LIMIT) {
                 ESP_LOGE(TAG, "IMU failsafe: %d consecutive read failures — disarming", g_imu_fails);
                 disarm();
+                continue;
+            }
+            /* While armed, a bad I2C read used to skip the whole PID path every
+             * tick so g_throttle never ramped and props never spun. Keep the
+             * ramp + equal open-loop output until good reads return or failsafe. */
+            if (g_armed) {
+                apply_equal_armed_throttle();
+                if (++print_counter >= PRINT_EVERY_N) {
+                    print_counter = 0;
+                    printf("[ARMED IMU_BAD T:%4d] open-loop equal thrust (%d consecutive fails)\n",
+                           g_throttle, g_imu_fails);
+                }
             }
             continue;
         }
@@ -456,13 +492,7 @@ void app_main(void)
         }
 
         // --- throttle ramp ---
-        if (g_throttle < HOVER_THROTTLE) {
-            int step = (HOVER_THROTTLE * FUSION_INTERVAL_MS) / THROTTLE_RAMP_MS;
-            if (step < 1) step = 1;
-            g_throttle += step;
-            if (g_throttle > HOVER_THROTTLE)
-                g_throttle = HOVER_THROTTLE;
-        }
+        throttle_ramp_step();
 
         // --- PID (pitch/roll D from gyro; yaw still rate PID on gyro_z) ---
         float pid_p = pid_compute_angle(&pid_pitch, 0.0f, angle_pitch, d.gyro_y_dps, dt);

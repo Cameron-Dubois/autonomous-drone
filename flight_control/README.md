@@ -1,6 +1,6 @@
 # flight\_control — ESP32 flight loop firmware
 
-Full flight control loop running at **100 Hz** on an ESP32. Reads the ICM‑42670‑P IMU, runs a complementary filter for attitude estimation, runs three independent PID controllers (pitch / roll / yaw), and mixes the outputs into per‑motor PWM duty cycles.
+Full flight control loop running at **100 Hz** on an ESP32. Reads the ICM‑42670‑P IMU, runs a complementary filter for attitude estimation, runs three independent PID controllers (pitch / roll / yaw), and mixes the outputs into per‑motor throttle duties (0–1023) sent to the ESCs over **DSHOT300**, matching `motor_tests/main/motor.c`.
 
 The motor API is intentionally identical to `drone_ble` so that the BLE GATT layer can be dropped in without changes.
 
@@ -14,7 +14,7 @@ flight_control/
 │   ├── main.c          Entry point — init, loop, sensor fusion, PID, mixing
 │   ├── icm42670p.c/.h  ICM-42670-P I2C driver
 │   ├── pid.c/.h        Single-axis PID with anti-windup and output clamping
-│   ├── motor.c/.h      Brushed motor driver (LEDC PWM, 0–1023 duty range)
+│   ├── motor.c/.h      DSHOT300 ESC driver (same protocol as motor_tests; 0–1023 duty)
 │   ├── main_imu_test.c Standalone IMU smoke-test (swap into CMakeLists to use)
 │   └── Kconfig.projbuild  IMU GPIO / I2C address menuconfig options
 └── CMakeLists.txt
@@ -73,7 +73,7 @@ X-quad motor mixing
   M4 = throttle − pitch − roll − yaw
       │
       ▼
-motor_set_speed() × 4   (duty 0–1023, LEDC PWM)
+motor_set_speed() × 4   (duty 0–1023 → DSHOT300 stream via background pump task)
 ```
 
 ### Sensor fusion
@@ -110,13 +110,15 @@ Defined in `motor.h`. The same API is used by `drone_ble` so commands from the m
 
 | Function | Description |
 |----------|-------------|
-| `motors_init()` | Configure LEDC channels and GPIO, all motors off |
-| `motor_set_speed(motor, duty)` | Set PWM duty 0–1023 |
+| `motors_init()` | GPIO + 2 s DSHOT disarm burst; start pump task (continuous frames) |
+| `motors_wait_arm_ready()` | Extra 3 s idle while pump runs |
+| `motor_set_speed(motor, duty)` | Logical duty 0–1023 → DSHOT throttle packet |
 | `motor_increase_speed(motor, amount)` | Relative increase (clamped) |
 | `motor_decrease_speed(motor, amount)` | Relative decrease (clamped) |
-| `motor_set_on_off(motor, bool)` | Enable / disable a motor |
-| `motor_set_direction(motor, bool)` | Reverse direction (forward = true) |
-| `motors_stop_all()` | Immediately zero all four motors |
+| `motor_set_on_off(motor, bool)` | When off, sends DSHOT 0 regardless of stored duty |
+| `motor_set_direction(motor, reversed)` | BLHeli DSHOT 20/21 + save (props **off**) |
+| `motor_get_gpio(idx)` | GPIO number for motor index (debug) |
+| `motors_stop_all()` | Idle / zero throttle on all motors |
 
 ---
 
