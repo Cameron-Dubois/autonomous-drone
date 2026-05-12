@@ -20,7 +20,7 @@ pydantic_core==2.46.4
 Pygments==2.20.0
 pytest==9.0.3
 python-jose==3.5.0
-python-multipart==0.0.27
+python-multipart==0.0.28
 rsa==4.9.1
 six==1.17.0
 starlette==1.0.0
