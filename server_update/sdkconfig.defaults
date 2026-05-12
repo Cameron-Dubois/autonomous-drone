@@ -1,0 +1,64 @@
+# ----------------------------------------------------------------------------
+# sdkconfig.defaults  -- baseline tuning for an ESP32-C3 WiFi drone
+# Generated for: real-time flight control + UDP control link
+#
+# Override anything you like with `idf.py menuconfig`.  These values are picked
+# to favor low-jitter control loops and low-latency UDP packet delivery.
+# ----------------------------------------------------------------------------
+
+CONFIG_IDF_TARGET="esp32c3"
+
+# --- CPU / clocks ---------------------------------------------------------
+# Run the C3 at its top speed.  We need the headroom for the 1 kHz control
+# loop + WiFi.
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=160
+
+# --- FreeRTOS -------------------------------------------------------------
+# 1000 Hz tick gives us 1 ms scheduling granularity, which matches our
+# control-loop period.  The C3 is single core, so no pinning gymnastics.
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
+CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
+
+# --- Compiler / size ------------------------------------------------------
+# -O2 is the right default for a flight controller: the extra speed matters,
+# and the binary still fits comfortably.
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE=n
+CONFIG_COMPILER_STACK_CHECK_MODE_NORM=y
+
+# --- Watchdogs ------------------------------------------------------------
+# Interrupt watchdog catches stuck ISRs; task watchdog catches stuck tasks.
+# The flight task feeds the TWDT every loop.
+CONFIG_ESP_INT_WDT=y
+CONFIG_ESP_INT_WDT_TIMEOUT_MS=300
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=2
+CONFIG_ESP_TASK_WDT_PANIC=y
+
+# --- WiFi -----------------------------------------------------------------
+# Smaller buffers + AMPDU off favors low latency over throughput.  Drones
+# care about the next packet, not aggregate Mbps.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n
+CONFIG_ESP_WIFI_AMPDU_RX_ENABLED=n
+CONFIG_ESP_WIFI_NVS_ENABLED=y
+
+# --- lwIP (UDP-favored) ---------------------------------------------------
+CONFIG_LWIP_TCP_MSL=5000
+CONFIG_LWIP_MAX_SOCKETS=6
+CONFIG_LWIP_SO_RCVBUF=y
+CONFIG_LWIP_IP_FORWARD=n
+
+# --- Logging --------------------------------------------------------------
+# Default to INFO; flip to WARN at the bench once tuning is done to free a
+# few cycles in the hot path.
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# --- Power management -----------------------------------------------------
+# We want consistent latency, not power saving.
+CONFIG_PM_ENABLE=n

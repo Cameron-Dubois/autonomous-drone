@@ -14,10 +14,21 @@
 import type { DroneComms } from "./comms";
 import { buildCommandBytes, createDefaultTelemetry, type Command, type Telemetry } from "../protocol/types";
 import { parseBleTelemetryPayload } from "../protocol/telemetry-parse";
-import { buildDroneWsUrl } from "../stream/droneStream";
+import { buildDroneGpsUrl, buildDroneWsUrl } from "../stream/droneStream";
 
 const RECONNECT_INITIAL_MS = 500;
 const RECONNECT_MAX_MS = 8_000;
+const GPS_HTTP_POLL_MS = 2_000;
+const LOG = "[drone wifi]";
+
+function log(...args: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.log(LOG, ...args);
+}
+function warn(...args: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.warn(LOG, ...args);
+}
 
 function mergeTelemetry(prev: Telemetry, patch: Partial<Telemetry>): Telemetry {
   return { ...prev, ...patch };
@@ -37,11 +48,18 @@ function splitTelemetryLines(text: string): string[] {
 }
 
 export type WifiCommsOptions = {
-  /** Override the auto-built `ws://192.168.4.1:81/ws` URL (e.g. for a sim). */
+  /** Override the auto-built `wss://192.168.4.1:443/ws` URL (e.g. for a sim). */
   url?: string;
+  /**
+   * When true (default), periodically GET `https://192.168.4.1/gps` whenever the WebSocket
+   * is not `SECURE_LINK` — same TLS trust as `fetch`, helps when WSS handshake fails.
+   * Set false in unit tests.
+   */
+  enableHttpGpsFallback?: boolean;
 };
 
 export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
+  const httpGpsFallback = options.enableHttpGpsFallback !== false;
   const DEFAULT_TELEMETRY: Telemetry = createDefaultTelemetry();
   const listeners = new Set<(t: Telemetry) => void>();
   let lastTelemetry: Telemetry = { ...DEFAULT_TELEMETRY };
@@ -50,6 +68,7 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
   let intentionallyClosed = false;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectDelayMs = RECONNECT_INITIAL_MS;
+  let gpsPollTimer: ReturnType<typeof setInterval> | null = null;
 
   const emit = (t: Telemetry) => {
     lastTelemetry = t;
@@ -62,10 +81,56 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
   };
 
   const handleIncomingText = (raw: string) => {
-    for (const line of splitTelemetryLines(raw)) {
+    const lines = splitTelemetryLines(raw);
+    if (lines.length > 0) {
+      const first = lines[0];
+      log("ws msg:", first.length > 120 ? first.slice(0, 120) + "…" : first);
+    }
+    for (const line of lines) {
       const patch = parseBleTelemetryPayload(line, "SECURE_LINK");
       emit(mergeTelemetry(lastTelemetry, patch));
     }
+  };
+
+  /** Merge GPS/telemetry JSON without forcing `link: SECURE_LINK` (used for HTTP /gps fallback). */
+  const mergeTelemetryTextWithoutLink = (raw: string) => {
+    for (const line of splitTelemetryLines(raw)) {
+      const patch = parseBleTelemetryPayload(line, "SECURE_LINK");
+      const { link: _drop, ...rest } = patch;
+      emit(mergeTelemetry(lastTelemetry, rest));
+    }
+  };
+
+  const clearGpsPoll = () => {
+    if (gpsPollTimer != null) {
+      clearInterval(gpsPollTimer);
+      gpsPollTimer = null;
+      log("gps poll stopped");
+    }
+  };
+
+  const startGpsPoll = () => {
+    if (!httpGpsFallback) return;
+    clearGpsPoll();
+    const url = buildDroneGpsUrl();
+    log("gps poll started ->", url, `every ${GPS_HTTP_POLL_MS}ms`);
+    gpsPollTimer = setInterval(() => {
+      if (intentionallyClosed || lastTelemetry.link === "SECURE_LINK") return;
+      void (async () => {
+        try {
+          const res = await fetch(url, { method: "GET" });
+          if (!res.ok) {
+            warn(`gps poll: HTTP ${res.status}`);
+            return;
+          }
+          const text = await res.text();
+          log("gps poll ok:", text.length > 120 ? text.slice(0, 120) + "…" : text);
+          mergeTelemetryTextWithoutLink(text);
+        } catch (e) {
+          warn("gps poll failed:", e instanceof Error ? e.message : String(e));
+        }
+      })();
+    }, GPS_HTTP_POLL_MS);
   };
 
   const clearReconnect = () => {
@@ -103,11 +168,12 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
     setLink("CONNECTING");
 
     const url = options.url ?? buildDroneWsUrl();
+    log("ws connect ->", url);
     let ws: WebSocket;
     try {
       ws = new WebSocket(url);
     } catch (e) {
-      console.log("WiFi comms: WebSocket construction failed:", e);
+      warn("ws construction failed:", e instanceof Error ? e.message : String(e));
       setLink("DISCONNECTED");
       scheduleReconnect();
       return;
@@ -116,6 +182,7 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
 
     ws.onopen = () => {
       reconnectDelayMs = RECONNECT_INITIAL_MS;
+      log("ws open ->", url);
       setLink("SECURE_LINK");
     };
 
@@ -128,11 +195,17 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
       // ignore until firmware defines a binary telemetry encoding.
     };
 
-    ws.onerror = () => {
-      // onclose follows; let it handle the state transition.
+    ws.onerror = (event) => {
+      const msg =
+        (event as { message?: string }).message ??
+        ((event as { error?: { message?: string } }).error?.message ?? "unknown");
+      warn("ws error:", msg);
     };
 
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      const code = (ev as { code?: number }).code;
+      const reason = typeof (ev as { reason?: string }).reason === "string" ? (ev as { reason: string }).reason : "";
+      warn(`ws close code=${code ?? "?"} reason="${reason}"`);
       socket = null;
       setLink("DISCONNECTED");
       scheduleReconnect();
@@ -150,13 +223,17 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
 
   return {
     async connect(_deviceId?: string): Promise<void> {
+      log("connect() called");
       intentionallyClosed = false;
       reconnectDelayMs = RECONNECT_INITIAL_MS;
+      startGpsPoll();
       openSocket();
     },
 
     async disconnect(): Promise<void> {
+      log("disconnect() called");
       intentionallyClosed = true;
+      clearGpsPoll();
       clearReconnect();
       closeExistingSocket();
       emit(mergeTelemetry(lastTelemetry, { link: "DISCONNECTED" }));

@@ -110,6 +110,45 @@ Wi‑Fi is used for camera frames and other high-bandwidth data only. All flight
 
 ---
 
+#### Secure Wi‑Fi telemetry (`wifi_gps_softap`)
+
+The **`wifi_gps_softap`** firmware (`wifi_gps_softap/`) runs a **single TLS server on port 443** only (no plain HTTP on 80/81). It is an optional parallel path to BLE for GPS-related telemetry: same JSON field names as documented in [Section 10 — GPS and Telemetry](10_GPS_Telemetry.md), delivered over HTTPS and secure WebSocket instead of Base64-wrapped BLE notifications.
+
+| Path | Method | Purpose | Notes |
+|------|--------|---------|-------|
+| `/` | GET | Health / alive check | Plain-text response |
+| `/stream` | GET | Chunked tick counter | Test / placeholder stream (`Cache-Control: no-cache`) |
+| `/gps` | GET | One-shot GPS + compass JSON | `application/json`; CORS `Access-Control-Allow-Origin: *` |
+| `/ws` | GET (Upgrade) | Secure WebSocket telemetry | JSON text frames, ~200 ms cadence (`WS_TELEM_INTERVAL_MS` in `wifi_gps_softap/main/softap_gps_main.c`) |
+
+**WebSocket behaviour**
+
+- **Single active client:** the firmware tracks one socket fd (`s_ws_client_fd`); a new connection replaces the previous one (“last connect wins”).
+- **Outbound:** telemetry JSON matches `/gps` field set (`droneGpsValid`, `droneLat`, `droneLon`, `droneGpsFixQuality`, `droneGpsSatellites`, `droneGpsHdop`, `droneHeadingDeg`).
+- **Inbound:** TEXT/BINARY frames from the phone are read and discarded today; integration with flight commands is **TBD**.
+
+---
+
+#### TLS and self-signed certificate
+
+The certificate and private key are embedded at build time from:
+
+- `wifi_gps_softap/main/certs/servercert.pem`
+- `wifi_gps_softap/main/certs/prvkey.pem`
+
+(registered via `EMBED_TXTFILES` in `wifi_gps_softap/main/CMakeLists.txt`).
+
+For the default ESP-IDF soft‑AP gateway, the cert should use subject **`CN=drone-ap`** and SAN **`IP:192.168.4.1`**. Browsers and apps will warn unless the cert is trusted or pinning is configured — see [Section 12 — Mobile App Architecture](12_Mobile_App_Architecture.md) for mobile trust handling.
+
+**Verify from a laptop or phone on the drone AP:**
+
+```bash
+curl -vk https://192.168.4.1/gps
+openssl s_client -connect 192.168.4.1:443 -showcerts
+```
+
+---
+
 #### Adding new commands
 
 1. Define a new opcode in `drone_ble/main/bleprph.h` (`drone_cmd_id_t` enum).

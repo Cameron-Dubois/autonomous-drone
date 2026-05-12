@@ -23,6 +23,7 @@ The mobile app maintains a single `Telemetry` object that is updated whenever a 
 | `droneGpsFixQuality` | `number` | Drone | NMEA GGA fix quality (0 = invalid, 1 = GPS, 2 = DGPS, …) |
 | `droneGpsSatellites` | `number` | Drone | Number of satellites in use; 0 when unknown |
 | `droneGpsHdop` | `number \| null` | Drone | Horizontal dilution of precision; `null` when unknown |
+| `droneHeadingDeg` | `number \| null` | Drone | Compass heading in degrees (magnetometer); `null` when the compass is not ready or failed init |
 
 ---
 
@@ -44,7 +45,8 @@ The ESP32 encodes telemetry as a UTF‑8 string, Base64‑encodes it, and sends 
   "droneLon": -122.0308,
   "droneGpsFixQuality": 1,
   "droneGpsSatellites": 8,
-  "droneGpsHdop": 1.2
+  "droneGpsHdop": 1.2,
+  "droneHeadingDeg": 182.5
 }
 ```
 
@@ -71,6 +73,55 @@ TEL alt=12 batt=84 spd=0 rssi=-65 follow=0 dlat=36.9741 dlon=-122.0308 gps=1 fix
 | `hdop` | `droneGpsHdop` | Float |
 
 Unknown keys are silently ignored, so future firmware can add fields without breaking older app builds.
+
+---
+
+#### Wi‑Fi telemetry transport (HTTPS / WSS)
+
+When **`wifi_gps_softap`** is running, GPS-related fields can be read without BLE by joining the drone soft‑AP and using TLS on **port 443** only:
+
+| Endpoint | Protocol | Behaviour |
+|----------|----------|-----------|
+| `GET https://192.168.4.1/gps` | HTTPS | One-shot JSON snapshot; polls UART/GPS and compass on each request |
+| `wss://192.168.4.1/ws` | Secure WebSocket | Same JSON as plain text frames, pushed about every **200 ms** |
+
+Default gateway `192.168.4.1` matches ESP‑IDF soft‑AP. See [Section 11 — Communication Protocol](11_Communication_Protocol.md) for TLS details and WebSocket limits.
+
+**Semantics**
+
+- When there is **no GNSS fix**, `droneLat`, `droneLon`, and `droneGpsHdop` are JSON **`null`** (not `0`). `droneGpsValid` is `false`.
+- When the **compass** is not providing a heading, `droneHeadingDeg` is **`null`**.
+- `droneGpsFixQuality` and `droneGpsSatellites` still reflect the last parsed NMEA values when `droneGpsValid` is `false`.
+
+**Canonical payloads** (as emitted by `wifi_gps_softap/main/softap_gps_main.c`):
+
+Fix valid:
+
+```json
+{
+  "droneGpsValid": true,
+  "droneLat": 36.9741000,
+  "droneLon": -122.0308000,
+  "droneGpsFixQuality": 1,
+  "droneGpsSatellites": 8,
+  "droneGpsHdop": 1.2,
+  "droneHeadingDeg": 182.5
+}
+```
+
+No fix (example values for fix quality / satellites may vary):
+
+```json
+{
+  "droneGpsValid": false,
+  "droneLat": null,
+  "droneLon": null,
+  "droneGpsFixQuality": 0,
+  "droneGpsSatellites": 0,
+  "droneGpsHdop": null,
+  "droneHeadingDeg": null
+}
+```
 
 ---
 
@@ -104,6 +155,11 @@ drone_ble firmware  ──encodes──►  TEL dlat=… dlon=… gps=1 …
                                         ▼
                                   Telemetry object
                                   (droneLat, droneLon, …)
+
+Optional: wifi_gps_softap  ──HTTPS/WSS──►  JSON /gps or /ws text frames
+                                        │
+                                        ▼
+                              parseBleTelemetryPayload()  (Wi‑Fi comms adapter)
 
 Phone GNSS hardware
       │  expo-location watchPositionAsync

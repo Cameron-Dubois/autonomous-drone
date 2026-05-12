@@ -1,0 +1,9 @@
+# ESP32-C3 partition table tuned for a single-app firmware with NVS for
+# WiFi credentials and PID gains.  No OTA slot yet -- can be added later
+# without changing the application.
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x6000,
+phy_init,   data, phy,      0xf000,   0x1000,
+factory,    app,  factory,  0x10000,  1M,
+storage,    data, spiffs,   ,         0x40000,

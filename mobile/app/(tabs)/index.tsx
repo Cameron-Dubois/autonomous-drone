@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, useWindowDimensions, Alert } from "react-native";
+import { useFocusEffect } from "expo-router";
 import { useComms } from "../../src/context/CommsContext";
 import { usePhoneLocation } from "../../src/hooks/usePhoneLocation";
 import { createDefaultTelemetry } from "../../src/protocol/types";
@@ -17,7 +18,32 @@ export default function HomeScreen() {
         return unsubscribe;
     }, [comms]);
 
+    const lastLinkRef = useRef(tel.link);
+    lastLinkRef.current = tel.link;
+
+    useFocusEffect(
+        useCallback(() => {
+            if (lastLinkRef.current === "DISCONNECTED") {
+                void comms.connect().catch((e) => {
+                    console.warn("[home] comms.connect failed:", e);
+                });
+            }
+        }, [comms])
+    );
+
     const barActive = (i: number) => tel.rssiBars >= i;
+
+    const droneLat = tel.droneLat ?? 0;
+    const droneLon = tel.droneLon ?? 0;
+    const droneGpsValid = tel.droneGpsValid && tel.droneLat != null && tel.droneLon != null;
+    const linkLabel =
+        tel.link === "SECURE_LINK"
+            ? droneGpsValid
+                ? "live"
+                : "link OK · awaiting fix"
+            : tel.link === "CONNECTING"
+              ? "connecting…"
+              : "no link";
 
     return (
         <View style={styles.root}>
@@ -85,6 +111,28 @@ export default function HomeScreen() {
                                 </Text>
                             </>
                         )}
+                    </View>
+
+                    <View style={styles.droneSection}>
+                        <Text style={styles.label}>DRONE (GPS)</Text>
+                        <Text
+                            style={[
+                                styles.mono,
+                                styles.phoneCoords,
+                                droneGpsValid ? styles.teal : styles.droneCoordsMuted,
+                            ]}
+                        >
+                            {droneLat.toFixed(6)}°, {droneLon.toFixed(6)}°
+                        </Text>
+                        <Text style={styles.phoneSub}>
+                            {tel.droneGpsSatellites} sats · fix Q {tel.droneGpsFixQuality}
+                            {tel.droneGpsHdop != null ? ` · HDOP ${tel.droneGpsHdop.toFixed(1)}` : ""}
+                            {typeof tel.droneHeadingDeg === "number" && Number.isFinite(tel.droneHeadingDeg)
+                                ? ` · hdg ${Math.round(tel.droneHeadingDeg)}°`
+                                : ""}
+                            {" · "}
+                            {linkLabel}
+                        </Text>
                     </View>
 
                 <View style={[styles.telemetry, styles.telemetryDisabled]}>
@@ -158,6 +206,8 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         justifyContent: "space-between",
     },
     phoneSection: { marginTop: spacing.xxl },
+    droneSection: { marginTop: spacing.xl },
+    droneCoordsMuted: { color: "rgba(255,255,255,0.45)" },
     phoneCoords: { fontVariant: ["tabular-nums"] },
     phoneSub: {
         marginTop: 6,

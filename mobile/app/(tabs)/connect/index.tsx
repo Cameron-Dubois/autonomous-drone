@@ -1,10 +1,25 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Platform, PermissionsAndroid, TextInput } from "react-native";
+import { useFocusEffect } from "expo-router";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  PermissionsAndroid,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { getBleClient, setStoredDeviceId, type BleDeviceSummary } from "../../../src/comms/BLE";
 import { spacing, fontSizes, radii, tabBarHeight } from "../../../src/theme/layout";
 import { getWifiClient, type WifiNetworkSummary } from "../../../src/comms/WiFi";
+import { isHybridComms } from "../../../src/comms/hybrid-comms";
 import { useComms } from "../../../src/context/CommsContext";
 
 const SCAN_TIMEOUT_MS = 5000;
@@ -35,24 +50,28 @@ export default function Connect() {
   const [wifiRefresh, setWifiRefresh] = useState(0);
   const [manualCmd, setManualCmd] = useState("");
   const [cmdLog, setCmdLog] = useState<{ text: string; ok: boolean }[]>([]);
+  const [securedJoinNetwork, setSecuredJoinNetwork] = useState<WifiNetworkSummary | null>(null);
+  const [securedWifiPassword, setSecuredWifiPassword] = useState("");
+
+  const refreshWifiState = useCallback(async () => {
+    try {
+      const client = getWifiClient();
+      await client.refreshConnectionStatus();
+      setWifiRefresh((n) => n + 1);
+    } catch {
+      // WiFi may not be available (Expo Go)
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const client = getWifiClient();
-        if (typeof client.refreshConnectionStatus === "function") {
-          await client.refreshConnectionStatus();
-          if (!cancelled) setWifiRefresh((n) => n + 1);
-        }
-      } catch {
-        // WiFi may not be available (Expo Go)
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void refreshWifiState();
+  }, [refreshWifiState]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshWifiState();
+    }, [refreshWifiState])
+  );
 
   const requestBluetoothPermission = useCallback(async (): Promise<boolean> => {
     if (Platform.OS !== "android") return true;
@@ -98,17 +117,24 @@ export default function Connect() {
       await client.connect(deviceId);
       setStoredDeviceId(deviceId);
       setBluetoothStatus("connected");
+      if (isHybridComms(comms)) {
+        comms.syncBleFromExternalConnection();
+      }
     } catch (e) {
       setBleError(e instanceof Error ? e.message : "Connection failed");
       Alert.alert("Connection failed", e instanceof Error ? e.message : "Could not connect to device.");
     }
-  }, []);
+  }, [comms]);
 
   const handleDisconnect = useCallback(async () => {
     setBleError(null);
     try {
-      await comms.disconnect();
+      const client = getBleClient();
+      await client.disconnect();
       setBluetoothStatus("disconnected");
+      if (isHybridComms(comms)) {
+        comms.syncBleFromExternalConnection();
+      }
     } catch (e) {
       setBleError(e instanceof Error ? e.message : "Disconnect failed");
     }
@@ -139,9 +165,9 @@ export default function Connect() {
     }
   }, []);
 
-  const handleWifiConnect = useCallback(async (network: WifiNetworkSummary) => {
-    setWifiError(null);
-    const connectWithPassword = async (password?: string) => {
+  const joinWifiNetwork = useCallback(
+    async (network: WifiNetworkSummary, password?: string) => {
+      setWifiError(null);
       try {
         const client = getWifiClient();
         await client.connect(network.id, password);
@@ -149,47 +175,80 @@ export default function Connect() {
           await client.refreshConnectionStatus();
           setWifiRefresh((n) => n + 1);
         }
+        void comms.connect();
+        setSecuredJoinNetwork(null);
+        setSecuredWifiPassword("");
       } catch (e) {
         setWifiError(e instanceof Error ? e.message : "Connection failed");
         Alert.alert("Connection failed", e instanceof Error ? e.message : "Could not connect to network.");
       }
-    };
-    if (network.secured) {
-      if (Platform.OS === "ios") {
+    },
+    [comms]
+  );
+
+  const handleWifiConnect = useCallback(
+    (network: WifiNetworkSummary) => {
+      if (network.secured && Platform.OS === "android") {
+        setSecuredJoinNetwork(network);
+        setSecuredWifiPassword("");
+        return;
+      }
+      if (network.secured && Platform.OS === "ios") {
         Alert.prompt(
           `Connect to ${network.ssid}`,
           "Enter WiFi password",
           [
             { text: "Cancel", style: "cancel" },
-            { text: "Connect", onPress: (pw?: string) => connectWithPassword(pw || undefined) },
+            {
+              text: "Connect",
+              onPress: (pw?: string) => {
+                void joinWifiNetwork(network, pw || undefined);
+              },
+            },
           ],
           "secure-text"
         );
-      } else {
-        Alert.alert(
-          "Secured network",
-          `To connect to "${network.ssid}", go to your device WiFi settings and enter the password there.`
-        );
+        return;
       }
-    } else {
-      await connectWithPassword();
+      void joinWifiNetwork(network);
+    },
+    [joinWifiNetwork]
+  );
+
+  const openWifiSettings = useCallback(async () => {
+    try {
+      await getWifiClient().openSystemWifiSettings();
+    } catch (e) {
+      Alert.alert("Could not open Wi‑Fi settings", e instanceof Error ? e.message : "Unknown error");
     }
   }, []);
 
   const handleWifiDisconnect = useCallback(async () => {
     setWifiError(null);
     try {
+      await comms.disconnect();
       const client = getWifiClient();
-      await client.disconnect();
-      if (typeof client.refreshConnectionStatus === "function") {
-        await client.refreshConnectionStatus();
-        setWifiRefresh((n) => n + 1);
+      const result = await client.disconnect();
+      await client.refreshConnectionStatus();
+      setWifiRefresh((n) => n + 1);
+
+      if (!result.disconnected && result.reason === "systemManaged") {
+        Alert.alert(
+          "Open Wi‑Fi settings",
+          "Android only lets the app disconnect networks it joined itself. This network was joined from system settings — open the Wi‑Fi panel to disconnect it.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Wi‑Fi", onPress: () => void openWifiSettings() },
+          ]
+        );
+      } else if (!result.disconnected) {
+        setWifiError(result.message ?? "Disconnect failed");
       }
     } catch (e) {
       setWifiError(e instanceof Error ? e.message : "Disconnect failed");
       Alert.alert("Disconnect failed", e instanceof Error ? e.message : "Could not disconnect.");
     }
-  }, []);
+  }, [comms, openWifiSettings]);
 
   const handleManualSend = useCallback(async () => {
     const trimmed = manualCmd.trim();
@@ -219,21 +278,70 @@ export default function Connect() {
 
   const connectedWifiId = (() => {
     try {
-      void wifiRefresh; // force recalc when refresh changes
+      void wifiRefresh;
       return getWifiClient().getConnectedNetworkId();
     } catch {
       return null;
     }
   })();
-  const isWifiConnected = connectedWifiId != null;
+  const isWifiLinked = (() => {
+    try {
+      void wifiRefresh;
+      return getWifiClient().isWifiAssociated();
+    } catch {
+      return false;
+    }
+  })();
 
   const contentTop = insets.top + spacing.lg;
   const contentBottom = insets.bottom + (tabBarHeight ?? 56) + spacing.xl;
 
   return (
     <View style={styles.root}>
+      <Modal
+        visible={securedJoinNetwork != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSecuredJoinNetwork(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Wi‑Fi password</Text>
+            <Text style={styles.modalSubtitle} numberOfLines={2}>
+              {securedJoinNetwork?.ssid ?? ""}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={securedWifiPassword}
+              onChangeText={setSecuredWifiPassword}
+              placeholder="Password"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.btn, styles.modalBtn]} onPress={() => setSecuredJoinNetwork(null)}>
+                <Text style={styles.btnLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.btn, styles.modalBtn, styles.btnPrimary]}
+                onPress={() => {
+                  if (securedJoinNetwork) void joinWifiNetwork(securedJoinNetwork, securedWifiPassword || undefined);
+                }}
+              >
+                <Text style={styles.btnLabel}>Connect</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
       <ScrollView
         style={styles.scrollView}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.scrollContent,
           {
@@ -355,9 +463,9 @@ export default function Connect() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>WiFi</Text>
-              <View style={[styles.statusBadge, isWifiConnected && styles.statusConnected]}>
+              <View style={[styles.statusBadge, isWifiLinked && styles.statusConnected]}>
                 <Text style={styles.statusText}>
-                  {isWifiConnected ? "CONNECTED" : wifiStatus === "scanning" ? "SCANNING" : "DISCONNECTED"}
+                  {isWifiLinked ? "CONNECTED" : wifiStatus === "scanning" ? "SCANNING" : "DISCONNECTED"}
                 </Text>
               </View>
             </View>
@@ -368,33 +476,71 @@ export default function Connect() {
               </View>
             ) : null}
 
-            <Pressable
-              style={[styles.btn, styles.btnPrimary]}
-              onPress={() => {
-                if (isWifiConnected) {
-                  handleWifiDisconnect();
-                } else if (wifiStatus === "scanning") {
-                  // Scan in progress
-                } else {
-                  handleWifiScan();
-                }
-              }}
-              disabled={wifiStatus === "scanning"}
-            >
-              {wifiStatus === "scanning" ? (
-                <ActivityIndicator color="rgba(255,255,255,0.7)" />
-              ) : (
-                <Text style={styles.btnLabel}>
-                  {isWifiConnected ? "Disconnect" : "Scan for Networks"}
-                </Text>
-              )}
-            </Pressable>
+            {Platform.OS === "android" ? (
+              <>
+                <View style={styles.wifiActionRow}>
+                  <Pressable
+                    style={[styles.btn, styles.btnPrimary, styles.wifiActionHalf]}
+                    onPress={() => {
+                      if (wifiStatus !== "scanning") handleWifiScan();
+                    }}
+                    disabled={wifiStatus === "scanning"}
+                    hitSlop={8}
+                  >
+                    {wifiStatus === "scanning" ? (
+                      <ActivityIndicator color="rgba(255,255,255,0.7)" />
+                    ) : (
+                      <Text style={styles.btnLabel}>Scan networks</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.btn, styles.wifiActionHalf]}
+                    onPress={() => void handleWifiDisconnect()}
+                    disabled={wifiStatus === "scanning"}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.btnLabel}>Disconnect Wi‑Fi</Text>
+                  </Pressable>
+                </View>
+                <Pressable
+                  style={[styles.btn, styles.btnSecondary, styles.wifiSettingsBtn]}
+                  onPress={() => void openWifiSettings()}
+                  hitSlop={8}
+                >
+                  <Text style={styles.btnLabel}>Open Wi‑Fi settings</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={[styles.btn, styles.btnPrimary]}
+                onPress={() => {
+                  if (isWifiLinked) {
+                    handleWifiDisconnect();
+                  } else if (wifiStatus === "scanning") {
+                    //
+                  } else {
+                    handleWifiScan();
+                  }
+                }}
+                disabled={wifiStatus === "scanning"}
+              >
+                {wifiStatus === "scanning" ? (
+                  <ActivityIndicator color="rgba(255,255,255,0.7)" />
+                ) : (
+                  <Text style={styles.btnLabel}>
+                    {isWifiLinked ? "Disconnect" : "Scan for Networks"}
+                  </Text>
+                )}
+              </Pressable>
+            )}
 
-            {isWifiConnected && (
+            {isWifiLinked && (
               <View style={[styles.deviceItem, { marginBottom: spacing.md }]}>
                 <View style={styles.deviceInfo}>
                   <Text style={styles.label}>Current Network</Text>
-                  <Text style={styles.deviceName}>{connectedWifiId}</Text>
+                  <Text style={styles.deviceName}>
+                    {connectedWifiId ?? "Connected (name unavailable on this Android version)"}
+                  </Text>
                 </View>
               </View>
             )}
@@ -420,7 +566,7 @@ export default function Connect() {
                   <Pressable
                     style={[styles.btn, styles.btnSmall]}
                     onPress={() => handleWifiConnect(n)}
-                    disabled={isWifiConnected}
+                    disabled={isWifiLinked}
                   >
                     <Text style={styles.btnLabel}>
                       {connectedWifiId === n.id ? "Connected" : "Connect"}
@@ -532,6 +678,24 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.xl,
         flexShrink: 0,
     },
+    wifiActionRow: {
+        flexDirection: "row",
+        gap: spacing.md,
+        alignItems: "stretch",
+    },
+    wifiActionHalf: {
+        flex: 1,
+        minWidth: 0,
+        minHeight: 72,
+    },
+    wifiSettingsBtn: {
+        marginTop: spacing.md,
+        minHeight: 52,
+    },
+    btnSecondary: {
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(255,255,255,0.02)",
+    },
     btnLabel: { fontSize: fontSizes.sm, fontWeight: "800", letterSpacing: 2, color: "rgba(255,255,255,0.7)" },
     deviceList: {
         marginTop: spacing.xl,
@@ -603,5 +767,49 @@ const styles = StyleSheet.create({
     },
     cmdLogError: {
         color: "rgba(255,80,80,0.8)",
+    },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.7)",
+        justifyContent: "center",
+        paddingHorizontal: spacing.xxl,
+    },
+    modalCard: {
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "#0a0e14",
+        padding: spacing.xl,
+    },
+    modalTitle: {
+        fontSize: fontSizes.lg,
+        fontWeight: "800",
+        color: "white",
+        letterSpacing: 1,
+    },
+    modalSubtitle: {
+        fontSize: fontSizes.sm,
+        color: "rgba(255,255,255,0.45)",
+        marginTop: spacing.xs,
+        marginBottom: spacing.lg,
+    },
+    modalInput: {
+        borderRadius: radii.sm,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        color: "white",
+        fontSize: fontSizes.md,
+    },
+    modalActions: {
+        flexDirection: "row",
+        gap: spacing.md,
+        marginTop: spacing.lg,
+    },
+    modalBtn: {
+        flex: 1,
+        minHeight: 52,
     },
 });

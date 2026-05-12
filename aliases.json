@@ -1,0 +1,40 @@
+[
+  {
+    "primary": "ayegalap@ucsc.edu",
+    "name": "Abhiram",
+    "aliases": []
+  },
+  {
+    "primary": "calduboi@ucsc.edu",
+    "name": "Cameron",
+    "aliases": []
+  },
+  {
+    "primary": "drahm@ucsc.edu",
+    "name": "Darin",
+    "aliases": ["136948767+hoodiedreams@users.noreply.github.com"]
+  },
+  {
+    "primary": "etjliu@ucsc.edu",
+    "name": "Ethan",
+    "aliases": [
+      "40641738+opdragoboss@users.noreply.github.com",
+      "opdragoboss@gmail.com",
+      "etjiu@ucsc.edu"
+    ]
+  },
+  {
+    "primary": "swendbel@ucsc.edu",
+    "name": "Stephen",
+    "aliases": [
+      "steph@eduroam-169-233-231-183.ucsc.edu",
+      "steph@Stephens-MacBook-Air.local",
+      "stephenwb360@gmail.com"
+    ]
+  },
+  {
+    "primary": "wwong28@ucsc.edu",
+    "name": "Winnie",
+    "aliases": ["WinnieWong@Winnies-MacBook-Air.local"]
+  }
+]

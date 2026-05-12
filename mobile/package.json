@@ -7,6 +7,8 @@
     "test": "jest",
     "smoke": "npm run typecheck && npm run test -- --ci",
     "start": "expo start",
+    "start:lan": "expo start --lan",
+    "start:tunnel": "expo start --tunnel",
     "android": "expo run:android",
     "android:shortpath": "android-build-shortpath.bat",
     "ios": "expo run:ios",
