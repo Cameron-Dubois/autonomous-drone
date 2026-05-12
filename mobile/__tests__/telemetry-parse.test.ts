@@ -106,4 +106,30 @@ describe("parseBleTelemetryPayload GPS", () => {
     expect(parseBleTelemetryPayload("TEL course=-5", link).droneHeadingDeg).toBe(355);
     expect(parseBleTelemetryPayload("TEL yaw=400", link).droneHeadingDeg).toBe(40);
   });
+
+  it("parses barometer altitude alongside GPS in canonical JSON", () => {
+    const p = parseBleTelemetryPayload(
+      JSON.stringify({
+        droneLat: 36.974,
+        droneLon: -122.03,
+        droneGpsValid: true,
+        altM: 7,
+        droneBaroOk: true,
+      }),
+      link
+    );
+    expect(p.altM).toBe(7);
+    expect(p.droneBaroOk).toBe(true);
+    expect(p.droneLat).toBe(36.974);
+  });
+
+  it("parses droneBaroOk false and baroOk alias", () => {
+    expect(parseBleTelemetryPayload(JSON.stringify({ droneBaroOk: false }), link).droneBaroOk).toBe(false);
+    expect(parseBleTelemetryPayload(JSON.stringify({ baroOk: 1 }), link).droneBaroOk).toBe(true);
+  });
+
+  it("parses TEL baro token", () => {
+    expect(parseBleTelemetryPayload("TEL alt=12 baro=1", link).droneBaroOk).toBe(true);
+    expect(parseBleTelemetryPayload("TEL baro=0", link).droneBaroOk).toBe(false);
+  });
 });

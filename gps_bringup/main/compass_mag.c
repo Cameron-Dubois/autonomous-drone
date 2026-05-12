@@ -316,6 +316,11 @@ compass_type_t compass_get_type(void)
     return s_type;
 }
 
+i2c_master_bus_handle_t compass_get_i2c_bus(void)
+{
+    return s_i2c_bus;
+}
+
 static bool read_qmc(float *heading_deg_out)
 {
     uint8_t status = 0;

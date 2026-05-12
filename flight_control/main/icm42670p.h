@@ -143,6 +143,11 @@ esp_err_t icm42670p_read_raw(icm42670p_handle_t dev, icm42670p_raw_t *raw);
 //the full-scale range that was set during init
 esp_err_t icm42670p_read(icm42670p_handle_t dev, icm42670p_data_t *data);
 
+// Rotate accel + gyro about +Z (board top), each step = 90° CCW looking down onto the PCB.
+// 0 = chip frame as read from registers; 1 = x'=-y, y'=x (typical fix when USB moved to starboard).
+// Leaves temp_c unchanged. Call after icm42670p_read() before fusion.
+void icm42670p_apply_mount_rot_z(icm42670p_data_t *d, int quarter_turns_ccw);
+
 #ifdef __cplusplus
 }
 #endif

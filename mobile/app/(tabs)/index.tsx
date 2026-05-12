@@ -133,6 +133,18 @@ export default function HomeScreen() {
                             {" · "}
                             {linkLabel}
                         </Text>
+                        <Text
+                            style={[
+                                styles.mono,
+                                styles.droneAlt,
+                                tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
+                            ]}
+                        >
+                            {tel.droneBaroOk
+                                ? `${tel.altM >= 0 ? "+" : ""}${tel.altM} m`
+                                : "— m"}
+                            <Text style={styles.droneAltUnit}>  alt (baro, rel)</Text>
+                        </Text>
                     </View>
 
                 <View style={[styles.telemetry, styles.telemetryDisabled]}>
@@ -140,14 +152,6 @@ export default function HomeScreen() {
                     <Text style={[styles.big, styles.bigDisabled]}>
                         {tel.speedKmh}
                         <Text style={[styles.unit, styles.unitDisabled]}> KM/H</Text>
-                    </Text>
-
-                    <View style={{ height: spacing.xxl }} />
-
-                    <Text style={[styles.label, styles.labelDisabled]}>Current Altitude</Text>
-                    <Text style={[styles.big, styles.bigDisabled]}>
-                        {tel.altM}
-                        <Text style={[styles.unit, styles.unitDisabled]}> M</Text>
                     </Text>
                 </View>
 
@@ -208,6 +212,18 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
     phoneSection: { marginTop: spacing.xxl },
     droneSection: { marginTop: spacing.xl },
     droneCoordsMuted: { color: "rgba(255,255,255,0.45)" },
+    droneAlt: {
+        marginTop: spacing.sm,
+        fontSize: fontSizes.lg,
+        fontVariant: ["tabular-nums"],
+        fontWeight: "700",
+    },
+    droneAltUnit: {
+        fontSize: fontSizes.xs,
+        fontWeight: "400",
+        color: "rgba(255,255,255,0.4)",
+        letterSpacing: 1.5,
+    },
     phoneCoords: { fontVariant: ["tabular-nums"] },
     phoneSub: {
         marginTop: 6,

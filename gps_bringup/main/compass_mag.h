@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esp_err.h"
+#include "driver/i2c_master.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -12,6 +13,13 @@ typedef enum {
 
 /** Install I2C, log bus scan, detect QMC5883 (0x0D) or HMC5883L (0x1E). */
 esp_err_t compass_init(void);
+
+/**
+ * Return the shared I2C master bus handle that compass_init() created.
+ * Other drivers (e.g. barometer) attach their device on this bus.
+ * Returns NULL when compass_init() has not been called or the bus failed to allocate.
+ */
+i2c_master_bus_handle_t compass_get_i2c_bus(void);
 
 compass_type_t compass_get_type(void);
 

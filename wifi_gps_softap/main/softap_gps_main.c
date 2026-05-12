@@ -3,11 +3,13 @@
  * JSON lines match mobile parseBleTelemetryPayload: droneLat, droneLon, droneGpsValid,
  * droneHeadingDeg, etc. TLS uses an embedded self-signed certificate.
  */
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "board_config.h"
+#include "bmp280_baro.h"
 #include "compass_mag.h"
 #include "gps_nmea.h"
 #include "bleprph.h"
@@ -63,7 +65,8 @@ static int ws_fd_get(void)
 #define WS_TELEM_INTERVAL_MS 200
 
 /** Build one-line JSON telemetry (same schema as /gps and WSS). Returns written length or -1. */
-static int build_gps_telem_json(char *buf, size_t buf_sz, const gps_fix_t *fix, bool compass_ok, float heading_deg)
+static int build_gps_telem_json(char *buf, size_t buf_sz, const gps_fix_t *fix, bool compass_ok, float heading_deg,
+                                bool baro_ok, float baro_alt_m)
 {
     char hdg_part[24];
     if (compass_ok) {
@@ -72,20 +75,28 @@ static int build_gps_telem_json(char *buf, size_t buf_sz, const gps_fix_t *fix, 
         memcpy(hdg_part, "null", 5);
     }
 
+    char alt_part[24];
+    if (baro_ok) {
+        snprintf(alt_part, sizeof(alt_part), "%d", (int)lroundf(baro_alt_m));
+    } else {
+        memcpy(alt_part, "null", 5);
+    }
+    const char *baro_ok_part = baro_ok ? "true" : "false";
+
     int n;
     if (fix->valid) {
         n = snprintf(buf, buf_sz,
                      "{\"droneGpsValid\":true,\"droneLat\":%.7f,\"droneLon\":%.7f,"
                      "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":%.1f,"
-                     "\"droneHeadingDeg\":%s}",
+                     "\"droneHeadingDeg\":%s,\"altM\":%s,\"droneBaroOk\":%s}",
                      fix->lat_deg, fix->lon_deg, fix->fix_quality, fix->satellites, (double)fix->hdop,
-                     hdg_part);
+                     hdg_part, alt_part, baro_ok_part);
     } else {
         n = snprintf(buf, buf_sz,
                      "{\"droneGpsValid\":false,\"droneLat\":null,\"droneLon\":null,"
                      "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":null,"
-                     "\"droneHeadingDeg\":%s}",
-                     fix->fix_quality, fix->satellites, hdg_part);
+                     "\"droneHeadingDeg\":%s,\"altM\":%s,\"droneBaroOk\":%s}",
+                     fix->fix_quality, fix->satellites, hdg_part, alt_part, baro_ok_part);
     }
 
     if (n <= 0 || (size_t)n >= buf_sz) {
@@ -152,10 +163,11 @@ static esp_err_t ws_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
-static void ws_push_telemetry(const gps_fix_t *fix, bool compass_ok, float heading_deg)
+static void ws_push_telemetry(const gps_fix_t *fix, bool compass_ok, float heading_deg,
+                              bool baro_ok, float baro_alt_m)
 {
-    char buf[384];
-    int n = build_gps_telem_json(buf, sizeof(buf), fix, compass_ok, heading_deg);
+    char buf[448];
+    int n = build_gps_telem_json(buf, sizeof(buf), fix, compass_ok, heading_deg, baro_ok, baro_alt_m);
     if (n < 0) {
         return;
     }
@@ -232,9 +244,11 @@ static esp_err_t gps_json_handler(httpd_req_t *req)
     gps_get_fix(&fix);
     float heading = 0.0f;
     bool compass_ok = compass_read_heading_deg(&heading);
+    float baro_alt = 0.0f;
+    bool baro_ok = baro_read_relative_altitude_m(&baro_alt);
 
     char buf[512];
-    int n = build_gps_telem_json(buf, sizeof(buf), &fix, compass_ok, heading);
+    int n = build_gps_telem_json(buf, sizeof(buf), &fix, compass_ok, heading, baro_ok, baro_alt);
     if (n < 0) {
         httpd_resp_set_status(req, "500 Internal Server Error");
         httpd_resp_set_type(req, "application/json");
@@ -381,7 +395,9 @@ static void sensor_task(void *arg)
             gps_get_fix(&fix_ws);
             float heading_ws = 0.0f;
             bool compass_ok_ws = compass_read_heading_deg(&heading_ws);
-            ws_push_telemetry(&fix_ws, compass_ok_ws, heading_ws);
+            float baro_alt_ws = 0.0f;
+            bool baro_ok_ws = baro_read_relative_altitude_m(&baro_alt_ws);
+            ws_push_telemetry(&fix_ws, compass_ok_ws, heading_ws, baro_ok_ws, baro_alt_ws);
             last_ws = now;
         }
 
@@ -398,6 +414,12 @@ static void sensor_task(void *arg)
             bool compass_ok = compass_read_heading_deg(&heading);
             compass_debug_t cdbg = {0};
             bool cdbg_ok = compass_get_debug(&cdbg);
+
+            float baro_alt_log = 0.0f;
+            bool baro_ok_log = baro_read_relative_altitude_m(&baro_alt_log);
+            ESP_LOGI(TAG, "baro=%s alt=%.2f m (relative to boot baseline)",
+                     baro_ok_log ? "OK" : (baro_is_ready() ? "WAIT" : "OFF"),
+                     baro_ok_log ? (double)baro_alt_log : 0.0);
 
             const char *ctype = "NONE";
             switch (compass_get_type()) {
@@ -465,6 +487,17 @@ void app_main(void)
                  esp_err_to_name(cerr));
     } else {
         compass_reset_calibration();
+    }
+
+    i2c_master_bus_handle_t i2c_bus = compass_get_i2c_bus();
+    if (i2c_bus) {
+        esp_err_t berr = baro_init(i2c_bus);
+        if (berr != ESP_OK) {
+            ESP_LOGW(TAG, "Barometer init failed (%s) — altitude unavailable; check wiring (SDO->GND for 0x76)",
+                     esp_err_to_name(berr));
+        }
+    } else {
+        ESP_LOGW(TAG, "I2C bus unavailable — barometer skipped");
     }
 
     xTaskCreate(sensor_task, "sensor", 4096, NULL, 5, NULL);

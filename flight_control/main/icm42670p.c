@@ -213,3 +213,24 @@ esp_err_t icm42670p_read(icm42670p_handle_t dev, icm42670p_data_t *data)
 
     return ESP_OK;
 }
+
+void icm42670p_apply_mount_rot_z(icm42670p_data_t *d, int quarter_turns_ccw)
+{
+    int q = quarter_turns_ccw & 3;
+    float ax, ay, az, gx, gy, gz;
+
+    for (; q != 0; q--) {
+        ax = d->accel_x_g;
+        ay = d->accel_y_g;
+        az = d->accel_z_g;
+        gx = d->gyro_x_dps;
+        gy = d->gyro_y_dps;
+        gz = d->gyro_z_dps;
+        d->accel_x_g  = -ay;
+        d->accel_y_g  = ax;
+        d->accel_z_g  = az;
+        d->gyro_x_dps = -gy;
+        d->gyro_y_dps = gx;
+        d->gyro_z_dps = gz;
+    }
+}

@@ -10,6 +10,9 @@
 #include "esp_log.h"
 #include "icm42670p.h"
 
+/* Match flight_control/main.c so serial matches fusion frame. */
+#define IMU_MOUNT_YAW_QUARTER_TURNS  1
+
 static const char *TAG = "main";
 
 #define PRINT_INTERVAL_MS  100
@@ -46,6 +49,8 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;
         }
+
+        icm42670p_apply_mount_rot_z(&d, IMU_MOUNT_YAW_QUARTER_TURNS);
 
         printf("A: x%+7.3f y%+7.3f z%+7.3f  G: x%+8.2f y%+8.2f z%+8.2f  T: %.1f C\n",
                d.accel_x_g,  d.accel_y_g,  d.accel_z_g,

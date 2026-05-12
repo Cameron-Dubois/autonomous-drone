@@ -9,6 +9,8 @@ import { parseBleTelemetryPayload } from "../protocol/telemetry-parse";
 import { getBleClient } from "./BLE";
 
 const BLE_ATTACH_POLL_MS = 900;
+/** Must be below flight_control LINK_TIMEOUT_MS (1500) so link-loss failsafe does not fire between user actions. */
+const BLE_HEARTBEAT_MS = 800;
 
 function mergeTelemetry(prev: Telemetry, patch: Partial<Telemetry>): Telemetry {
   return { ...prev, ...patch };
@@ -32,6 +34,7 @@ export function createHybridComms(inner: DroneComms): HybridComms {
   let innerUnsub: (() => void) | null = null;
   let bleUnsub: (() => void) | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   const emit = (t: Telemetry) => {
     lastTelemetry = t;
@@ -84,6 +87,28 @@ export function createHybridComms(inner: DroneComms): HybridComms {
     }, BLE_ATTACH_POLL_MS);
   };
 
+  const startBleHeartbeat = () => {
+    if (heartbeatTimer != null) return;
+    heartbeatTimer = setInterval(() => {
+      void (async () => {
+        try {
+          const client = getBleClient();
+          if (!client.getConnectedDeviceId()) return;
+          await client.sendCommand(buildCommandBytes({ type: "HEARTBEAT" }));
+        } catch {
+          /* BLE teardown or Expo */
+        }
+      })();
+    }, BLE_HEARTBEAT_MS);
+  };
+
+  const stopBleHeartbeat = () => {
+    if (heartbeatTimer != null) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+
   const stopPoll = () => {
     if (pollTimer != null) {
       clearInterval(pollTimer);
@@ -118,6 +143,7 @@ export function createHybridComms(inner: DroneComms): HybridComms {
         startInnerBridge();
         tryAttachBleTelemetry();
         startPoll();
+        startBleHeartbeat();
       } else {
         cb(lastTelemetry);
       }
@@ -125,6 +151,7 @@ export function createHybridComms(inner: DroneComms): HybridComms {
         hybridListeners.delete(cb);
         if (hybridListeners.size === 0) {
           stopPoll();
+          stopBleHeartbeat();
           detachBle();
           stopInnerBridge();
         }

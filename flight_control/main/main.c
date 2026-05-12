@@ -19,7 +19,8 @@
 //      - Build this file (main.c) with TETHER_BRINGUP_MODE = 1 below so the
 //        max commanded throttle stays low (~25%, no real lift even if the
 //        mix is wrong).
-//      - ARM via BOOT button. All four motors should spin at equal low duty.
+//      - Connect the mobile app over BLE and ARM (e.g. HOVER / ARM). All four
+//        motors should spin at equal low duty.
 //      - Tilt nose UP (front edge rises). Back motors (M1=BL, M3=BR) should
 //        SPEED UP; front motors (M2=FL, M4=FR) should SLOW DOWN.
 //      - Tilt right wing DOWN. Left motors (M1=BL, M2=FL) should SPEED UP;
@@ -33,7 +34,7 @@
 //      - Still TETHER_BRINGUP_MODE = 1. Drone should produce thrust without
 //        lifting; the PID loop should resist hand-induced tilt.
 //      - Watch the serial log for runaway / oscillation. Disarm immediately
-//        with BOOT button if anything misbehaves.
+//        from the app (DISARM / ESTOP) if anything misbehaves.
 //
 //  Step 5: Tethered hover attempt
 //      - Set TETHER_BRINGUP_MODE = 0 to use the real HOVER_THROTTLE. The
@@ -48,7 +49,6 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "driver/gpio.h"
 #include "icm42670p.h"
 #include "pid.h"
 #include "motor.h"
@@ -98,6 +98,9 @@ static const char *TAG = "flight";
 // commanded throttle to TETHER_MAX_DUTY (well below true hover) and ramps
 // in slowly so a wrong-sign mix produces obvious-but-survivable behavior
 // instead of an instant tether yank.
+//
+// For untethered hover: set TETHER_BRINGUP_MODE to 0 so HOVER_THROTTLE
+// uses the ~830 duty branch (tune for your AUW / ESC). Mobile HOVER sends BLE ARM.
 #define TETHER_BRINGUP_MODE  1
 
 #if TETHER_BRINGUP_MODE
@@ -108,9 +111,19 @@ static const char *TAG = "flight";
 #define THROTTLE_RAMP_MS   500
 #endif
 
-#define ARM_BUTTON_GPIO  9
-#define DEBOUNCE_MS      200
 #define IMU_FAIL_LIMIT   10
+
+/* ICM-42670-P on ESP32-C3-DevKit-RUST-1: Yaw the chip frame into the airframe before fusion.
+ * 0 = raw register axes (legacy mount). Each +1 = 90° CCW about +Z (look down at top of board).
+ * Set to 1 when the board is rotated so the USB connector faces the drone's RIGHT (+body X nose,
+ * +body Y left wing → USB on starboard). If pitch/roll still feel swapped in hover, try 3 instead. */
+#define IMU_MOUNT_YAW_QUARTER_TURNS  1
+
+/** Linear ESC throttle ramp when disarming (ms). Reduces inertial snap that can spin off self-tightening props. */
+#define MOTOR_RAMP_DOWN_MS        900
+#define MOTOR_RAMP_DOWN_TICKS     ((MOTOR_RAMP_DOWN_MS + FUSION_INTERVAL_MS - 1) / FUSION_INTERVAL_MS)
+/** Below this commanded duty, skip spool and go straight to idle (noise floor). */
+#define MIN_SPOOL_START_DUTY      8
 
 // ---------------------------------------------------------------------------
 static bool    g_armed        = false;
@@ -151,6 +164,9 @@ static pid_ctrl_t pid_pitch;
 static pid_ctrl_t pid_roll;
 static pid_ctrl_t pid_yaw;
 
+static int  g_spool_start[4];
+static int  g_spool_remaining;
+
 // ---------------------------------------------------------------------------
 static int clamp_duty(int val)
 {
@@ -183,28 +199,23 @@ static void disarm(void)
     /* Drop any pending bench commands so a stale SET_MOTOR doesn't spin a
      * motor back up immediately after disarm. */
     for (int i = 0; i < 4; i++) atomic_store(&g_req_set_motor[i], -1);
-    motors_stop_all();
-    ESP_LOGW(TAG, ">>> DISARMED — motors off");
-}
 
-// returns true once per button press (falling edge with debounce)
-static bool button_pressed(void)
-{
-    static bool     prev_level   = true;   // pulled up = idle high
-    static int64_t  last_press   = 0;
-
-    bool level = gpio_get_level(ARM_BUTTON_GPIO);
-
-    if (!level && prev_level) {
-        int64_t now = esp_timer_get_time();
-        if ((now - last_press) > (DEBOUNCE_MS * 1000LL)) {
-            last_press = now;
-            prev_level = level;
-            return true;
-        }
+    int max_cmd = 0;
+    for (int i = 0; i < MOTOR_COUNT; i++) {
+        g_spool_start[i] = motor_get_commanded_duty((motor_t)i);
+        if (g_spool_start[i] > max_cmd)
+            max_cmd = g_spool_start[i];
     }
-    prev_level = level;
-    return false;
+
+    if (max_cmd > MIN_SPOOL_START_DUTY) {
+        g_spool_remaining = MOTOR_RAMP_DOWN_TICKS;
+        ESP_LOGW(TAG, ">>> DISARMED — ramping motors down over %d ms",
+                 (int)(MOTOR_RAMP_DOWN_TICKS * FUSION_INTERVAL_MS));
+    } else {
+        g_spool_remaining = 0;
+        motors_stop_all();
+        ESP_LOGW(TAG, ">>> DISARMED — motors off");
+    }
 }
 
 // ---- BLE callbacks (run in NimBLE host task — keep them tiny) ------------
@@ -241,17 +252,7 @@ static void ble_on_set_motor(int motor_index, uint8_t throttle)
 // ---------------------------------------------------------------------------
 void app_main(void)
 {
-    ESP_LOGW(TAG, "=== Flight controller — BLE ARM/DISARM/ESTOP + BOOT button backup ===");
-
-    // --- arm/disarm button (GPIO9 BOOT, active-low with internal pull-up) ---
-    gpio_config_t btn_cfg = {
-        .pin_bit_mask = 1ULL << ARM_BUTTON_GPIO,
-        .mode         = GPIO_MODE_INPUT,
-        .pull_up_en   = GPIO_PULLUP_ENABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type    = GPIO_INTR_DISABLE,
-    };
-    gpio_config(&btn_cfg);
+    ESP_LOGW(TAG, "=== Flight controller — BLE-only ARM / DISARM / ESTOP (no physical arming) ===");
 
     // --- IMU ---
     icm42670p_handle_t imu = NULL;
@@ -290,7 +291,7 @@ void app_main(void)
     };
     esp_err_t ble_ret = ble_command_init(&cbs);
     if (ble_ret != ESP_OK) {
-        ESP_LOGE(TAG, "BLE init failed (%s) — BOOT button arming still works",
+        ESP_LOGE(TAG, "BLE init failed (%s) — cannot ARM (fix RF stack / wiring)",
                  esp_err_to_name(ble_ret));
     }
 
@@ -324,6 +325,7 @@ void app_main(void)
     icm42670p_data_t d;
     ret = icm42670p_read(imu, &d);
     if (ret == ESP_OK) {
+        icm42670p_apply_mount_rot_z(&d, IMU_MOUNT_YAW_QUARTER_TURNS);
         angle_pitch = atan2f(-d.accel_y_g,
                              sqrtf(d.accel_x_g * d.accel_x_g +
                                    d.accel_z_g * d.accel_z_g)) * RAD_TO_DEG;
@@ -332,7 +334,7 @@ void app_main(void)
                                    d.accel_z_g * d.accel_z_g)) * RAD_TO_DEG;
     }
 
-    ESP_LOGW(TAG, "DISARMED — waiting for BOOT button press");
+    ESP_LOGW(TAG, "DISARMED — waiting for BLE ARM from mobile app");
     ESP_LOGI(TAG, "Loop running at %d Hz", 1000 / FUSION_INTERVAL_MS);
 
     int64_t prev_us = esp_timer_get_time();
@@ -344,7 +346,7 @@ void app_main(void)
         // --- BLE command service (priority order: ESTOP > DISARM > ARM) ---
         // ESTOP and DISARM are checked unconditionally; ARM only when not
         // already armed, so a stuck mobile-app retry can't re-arm a drone
-        // that operator deliberately disarmed via BOOT button.
+        // the operator deliberately disarmed from the app.
         if (atomic_exchange(&g_req_estop, false)) {
             ESP_LOGE(TAG, "BLE ESTOP — disarming");
             disarm();
@@ -355,13 +357,35 @@ void app_main(void)
             if (g_armed) disarm();
         }
         if (atomic_exchange(&g_req_arm, false)) {
-            if (!g_armed) arm();
+            if (!g_armed && g_spool_remaining == 0)
+                arm();
+        }
+
+        /* Smoothly reduce PWM toward idle so props decelerate gently (avoids
+         * shock unloading self-tightening nuts). Runs even if IMU fails later. */
+        if (g_spool_remaining > 0) {
+            float scale = (float)g_spool_remaining / (float)MOTOR_RAMP_DOWN_TICKS;
+            for (int i = 0; i < MOTOR_COUNT; i++) {
+                int cmd = (int)((float)g_spool_start[i] * scale + 0.5f);
+                if (cmd > MAX_DUTY)
+                    cmd = MAX_DUTY;
+                if (cmd < 0)
+                    cmd = 0;
+                motor_set_on_off((motor_t)i, cmd > 0);
+                motor_set_speed((motor_t)i, cmd);
+            }
+            g_spool_remaining--;
+            if (g_spool_remaining == 0) {
+                motors_stop_all();
+                ESP_LOGW(TAG, "Motor ramp-down complete — ESC idle");
+            }
         }
 
         // --- Per-motor SET_MOTOR requests (bench test mode only) ---
         // While armed for flight, SET_MOTOR is ignored: the PID/mixer below
         // owns motor outputs and a manual override would just be overwritten
         // on the next tick (and would fight stabilisation if it weren't).
+        if (g_spool_remaining == 0) {
         for (int i = 0; i < 4; i++) {
             int v = atomic_exchange(&g_req_set_motor[i], -1);
             if (v < 0) continue;
@@ -377,17 +401,9 @@ void app_main(void)
             if (duty > 0) g_bench_active = true;
             ESP_LOGI(TAG, "BENCH M%d -> throttle=%u duty=%d", i + 1, v, duty);
         }
-
-        // --- BOOT button (backup arming + manual abort) ---
-        // If anything is spinning (armed flight OR bench-test), BOOT is a
-        // panic stop. Otherwise it's the backup ARM in case BLE is dead.
-        if (button_pressed()) {
-            if (g_armed || g_bench_active) {
-                ESP_LOGW(TAG, "BOOT button — stopping all motors");
-                disarm();
-            } else {
-                arm();
-            }
+        } else {
+            for (int i = 0; i < 4; i++)
+                atomic_exchange(&g_req_set_motor[i], -1);
         }
 
         // --- BLE link-loss failsafe (covers armed flight AND bench test) ---
@@ -412,6 +428,8 @@ void app_main(void)
         }
         g_imu_fails = 0;
 
+        icm42670p_apply_mount_rot_z(&d, IMU_MOUNT_YAW_QUARTER_TURNS);
+
         int64_t now_us = esp_timer_get_time();
         float dt = (now_us - prev_us) / 1000000.0f;
         prev_us = now_us;
@@ -429,9 +447,9 @@ void app_main(void)
         angle_roll  = ALPHA * (angle_roll  + d.gyro_x_dps * dt) + (1.0f - ALPHA) * accel_roll;
 
         if (!g_armed) {
-            if (++print_counter >= PRINT_EVERY_N * 5) {
+            if (g_spool_remaining == 0 && ++print_counter >= PRINT_EVERY_N * 5) {
                 print_counter = 0;
-                printf("[DISARMED] P:%+6.1f R:%+6.1f — press BOOT to arm\n",
+                printf("[DISARMED] P:%+6.1f R:%+6.1f — BLE ARM to spin\n",
                        angle_pitch, angle_roll);
             }
             continue;
