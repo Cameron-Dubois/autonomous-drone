@@ -53,30 +53,66 @@ export type TelemetrySource<T extends TelemetryWithDroneGps> = {
 };
 
 //wraps the WiFi (or any) telemetry source; keeps nav free of protocol imports
+const DEFAULT_HOLD_INVALID_GPS_MS = 20_000;
+
 export class TelemetryDroneProvider<T extends TelemetryWithDroneGps> implements DronePositionProvider {
+  private lastGoodFix: DroneFix | null = null;
+  private lastGoodWallMs = 0;
+
   constructor(
     private readonly source: TelemetrySource<T>,
-    private readonly clock: () => number = () => Date.now()
+    private readonly clock: () => number = () => Date.now(),
+    /**
+     * While drone telemetry reports invalid/missing GPS, keep publishing the last good
+     * lat/lon for this long so distance readouts do not flicker. Yaw uses latest heading
+     * whenever a full valid frame arrives.
+     */
+    private readonly holdInvalidGpsMs: number = DEFAULT_HOLD_INVALID_GPS_MS
   ) {}
 
   subscribe(cb: DroneFixCallback): DroneProviderUnsubscribe {
     return this.source.subscribeTelemetry((t) => {
-      if (t.droneGpsValid === false) return cb(null);
-      if (t.droneLat == null || t.droneLon == null) return cb(null);
-      // Firmware emits a magnetometer reading as `droneHeadingDeg`, which is a
-      // compass heading (nose direction), not course-over-ground. Map it to
-      // `headingDeg` so the navigator can compute yaw error at rest.
-      const headingDeg =
-        typeof t.droneHeadingDeg === "number" && Number.isFinite(t.droneHeadingDeg)
-          ? t.droneHeadingDeg
-          : null;
-      cb({
-        lat: t.droneLat,
-        lon: t.droneLon,
-        timestampMs: this.clock(),
-        headingDeg,
-        courseDeg: null,
-      });
+      const now = this.clock();
+      const gpsLooksValid =
+        t.droneGpsValid !== false &&
+        t.droneLat != null &&
+        t.droneLon != null &&
+        Number.isFinite(t.droneLat) &&
+        Number.isFinite(t.droneLon);
+
+      if (gpsLooksValid) {
+        const lat = t.droneLat as number;
+        const lon = t.droneLon as number;
+        const headingDeg =
+          typeof t.droneHeadingDeg === "number" && Number.isFinite(t.droneHeadingDeg)
+            ? t.droneHeadingDeg
+            : null;
+        const fix: DroneFix = {
+          lat,
+          lon,
+          timestampMs: now,
+          headingDeg,
+          courseDeg: null,
+        };
+        this.lastGoodFix = fix;
+        this.lastGoodWallMs = now;
+        cb(fix);
+        return;
+      }
+
+      if (
+        this.holdInvalidGpsMs > 0 &&
+        this.lastGoodFix != null &&
+        now - this.lastGoodWallMs <= this.holdInvalidGpsMs
+      ) {
+        cb({
+          ...this.lastGoodFix,
+          timestampMs: now,
+        });
+        return;
+      }
+
+      cb(null);
     });
   }
 }

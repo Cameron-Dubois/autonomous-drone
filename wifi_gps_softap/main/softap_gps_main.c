@@ -69,10 +69,15 @@ static int build_gps_telem_json(char *buf, size_t buf_sz, const gps_fix_t *fix, 
                                 bool baro_ok, float baro_alt_m)
 {
     char hdg_part[24];
+    char rose_json[20];
     if (compass_ok) {
         snprintf(hdg_part, sizeof(hdg_part), "%.1f", (double)heading_deg);
+        char rose[8];
+        compass_format_cardinal(heading_deg, rose, sizeof(rose));
+        snprintf(rose_json, sizeof(rose_json), "\"%s\"", rose);
     } else {
         memcpy(hdg_part, "null", 5);
+        memcpy(rose_json, "null", 5);
     }
 
     char alt_part[24];
@@ -88,15 +93,15 @@ static int build_gps_telem_json(char *buf, size_t buf_sz, const gps_fix_t *fix, 
         n = snprintf(buf, buf_sz,
                      "{\"droneGpsValid\":true,\"droneLat\":%.7f,\"droneLon\":%.7f,"
                      "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":%.1f,"
-                     "\"droneHeadingDeg\":%s,\"altM\":%s,\"droneBaroOk\":%s}",
+                     "\"droneHeadingDeg\":%s,\"droneHeadingRose\":%s,\"altM\":%s,\"droneBaroOk\":%s}",
                      fix->lat_deg, fix->lon_deg, fix->fix_quality, fix->satellites, (double)fix->hdop,
-                     hdg_part, alt_part, baro_ok_part);
+                     hdg_part, rose_json, alt_part, baro_ok_part);
     } else {
         n = snprintf(buf, buf_sz,
                      "{\"droneGpsValid\":false,\"droneLat\":null,\"droneLon\":null,"
                      "\"droneGpsFixQuality\":%d,\"droneGpsSatellites\":%d,\"droneGpsHdop\":null,"
-                     "\"droneHeadingDeg\":%s,\"altM\":%s,\"droneBaroOk\":%s}",
-                     fix->fix_quality, fix->satellites, hdg_part, alt_part, baro_ok_part);
+                     "\"droneHeadingDeg\":%s,\"droneHeadingRose\":%s,\"altM\":%s,\"droneBaroOk\":%s}",
+                     fix->fix_quality, fix->satellites, hdg_part, rose_json, alt_part, baro_ok_part);
     }
 
     if (n <= 0 || (size_t)n >= buf_sz) {
@@ -433,6 +438,9 @@ static void sensor_task(void *arg)
                 break;
             }
 
+            char rose[8] = {0};
+            compass_format_cardinal(heading, rose, sizeof(rose));
+
             if (cdbg_ok) {
                 int dx = (int)cdbg.x_max - (int)cdbg.x_min;
                 int dy = (int)cdbg.y_max - (int)cdbg.y_min;
@@ -441,20 +449,20 @@ static void sensor_task(void *arg)
                                                                         : "POOR";
                 ESP_LOGI(TAG,
                          "GPS valid=%d fix=%d sats=%d hdop=%.1f lat=%.6f lon=%.6f | "
-                         "uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f raw=%.1f cal=%.1f "
+                         "uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f° %s raw=%.1f cal=%.1f "
                          "x=%d y=%d x[%d..%d] y[%d..%d] dx=%d dy=%d cal_ok=%d cal_q=%s",
                          fix.valid, fix.fix_quality, fix.satellites, fix.hdop, fix.lat_deg, fix.lon_deg,
                          (unsigned long)rx_per_sec, (unsigned long)st.gga_parsed_count, ctype,
-                         compass_ok ? "OK" : "WAIT", heading, cdbg.heading_raw_deg, cdbg.heading_cal_deg,
+                         compass_ok ? "OK" : "WAIT", heading, rose, cdbg.heading_raw_deg, cdbg.heading_cal_deg,
                          (int)cdbg.x_raw, (int)cdbg.y_raw, (int)cdbg.x_min, (int)cdbg.x_max,
                          (int)cdbg.y_min, (int)cdbg.y_max, dx, dy, cdbg.calibrated ? 1 : 0, cal_quality);
             } else {
                 ESP_LOGI(TAG,
                          "GPS valid=%d fix=%d sats=%d hdop=%.1f lat=%.6f lon=%.6f | "
-                         "uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f deg",
+                         "uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f° %s",
                          fix.valid, fix.fix_quality, fix.satellites, fix.hdop, fix.lat_deg, fix.lon_deg,
                          (unsigned long)rx_per_sec, (unsigned long)st.gga_parsed_count, ctype,
-                         compass_ok ? "OK" : "WAIT", heading);
+                         compass_ok ? "OK" : "WAIT", heading, rose);
             }
             last_log = now;
         }

@@ -18,7 +18,12 @@
 #define I2C_TIMEOUT_MS      50
 
 /* Compass output tuning */
-#define COMPASS_DECLINATION_DEG  13.2f  /* Santa Cruz area magnetic declination (approx) */
-#define COMPASS_EMA_ALPHA        0.20f  /* 0..1, lower is smoother */
+#define COMPASS_DECLINATION_DEG      13.2f  /* Santa Cruz area magnetic declination (approx) */
+#define COMPASS_HEADING_OFFSET_DEG   0.0f   /* Add after declination if board +X/+Y vs drone nose differs */
+#define COMPASS_EMA_ALPHA            0.20f  /* 0..1, lower is smoother */
+/* Reject single-sample I2C spikes vs previous accepted point. Must be larger than real motion
+ * between reads during a calibration spin (full ellipse span is often ~500–1500 LSB/axis). */
+#define COMPASS_MAG_MAX_STEP_ABS     2800
+
 /* Use hard-iron corrected heading only when both axes span at least this (matches cal_q PARTIAL). */
 #define COMPASS_MIN_CAL_SPAN_FOR_HEADING 120

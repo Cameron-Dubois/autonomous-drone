@@ -3,6 +3,12 @@
     "name": "Aero Drone App",
     "slug": "aero-drone-app",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0f2df1f0-4104-4367-aeee-b695173c33e8"
+    },
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",

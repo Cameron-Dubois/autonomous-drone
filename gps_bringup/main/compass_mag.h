@@ -3,6 +3,7 @@
 #include "esp_err.h"
 #include "driver/i2c_master.h"
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef enum {
@@ -50,3 +51,6 @@ bool compass_get_debug(compass_debug_t *out);
 
 /** Clear runtime min/max calibration window and restart debug tracking. */
 void compass_reset_calibration(void);
+
+/** 8-point compass rose label for a heading in degrees [0, 360) (e.g. "N", "SW"). */
+void compass_format_cardinal(float heading_deg, char *out, size_t out_sz);

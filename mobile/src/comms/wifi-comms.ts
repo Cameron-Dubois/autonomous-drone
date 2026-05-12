@@ -82,9 +82,8 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
 
   const handleIncomingText = (raw: string) => {
     const lines = splitTelemetryLines(raw);
-    if (lines.length > 0) {
-      const first = lines[0];
-      log("ws msg:", first.length > 120 ? first.slice(0, 120) + "…" : first);
+    for (const line of lines) {
+      log("ws msg (full):", line);
     }
     for (const line of lines) {
       const patch = parseBleTelemetryPayload(line, "SECURE_LINK");
@@ -124,7 +123,7 @@ export function createWifiComms(options: WifiCommsOptions = {}): DroneComms {
             return;
           }
           const text = await res.text();
-          log("gps poll ok:", text.length > 120 ? text.slice(0, 120) + "…" : text);
+          log("gps poll ok (full):", text);
           mergeTelemetryTextWithoutLink(text);
         } catch (e) {
           warn("gps poll failed:", e instanceof Error ? e.message : String(e));
