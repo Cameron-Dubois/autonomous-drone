@@ -3,8 +3,11 @@
 
 #include "driver/i2c_master.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"
 
 #include <math.h>
+#include <stddef.h>
+#include <stdio.h>
 
 static const char *TAG = "compass";
 
@@ -12,6 +15,12 @@ static const char *TAG = "compass";
 #define QMC_REG_X_LSB       0x00
 #define QMC_REG_STATUS      0x06
 #define QMC_REG_CTRL1       0x09
+#define QMC_REG_CTRL2       0x0A
+#define QMC_REG_SET_RESET   0x0B
+#define QMC_REG_CHIP_ID     0x0D
+
+#define QMC_SOFT_RST        0x80
+#define QMC_INT_PIN_OFF     0x01
 
 #define HMC_ADDR            0x1E
 #define HMC_REG_IDENT_A     0x0A
@@ -49,6 +58,10 @@ static int16_t s_prev_y_raw = 0;
 
 #ifndef COMPASS_EMA_ALPHA
 #define COMPASS_EMA_ALPHA 0.25f
+#endif
+
+#ifndef COMPASS_HEADING_OFFSET_DEG
+#define COMPASS_HEADING_OFFSET_DEG 0.0f
 #endif
 
 static bool s_heading_filtered_valid = false;
@@ -223,10 +236,37 @@ static esp_err_t try_init_qmc(void)
         return ESP_ERR_NOT_FOUND;
     }
 
+    /*
+     * QMC5883L datasheet §7.1: write SET/RESET period (0x0B = 0x01) before CTRL1 (0x09).
+     * Skipping 0x0B leaves the AMR bridges poorly biased; X/Y then barely move with yaw.
+     * Reference drivers also pulse soft reset and disable the INT pin driver.
+     */
+    err = mag_write_reg(s_mag_dev, QMC_REG_CTRL2, QMC_SOFT_RST);
+    if (err != ESP_OK) {
+        mag_dev_release();
+        return ESP_FAIL;
+    }
+    esp_rom_delay_us(10000);
+    err = mag_write_reg(s_mag_dev, QMC_REG_CTRL2, QMC_INT_PIN_OFF);
+    if (err != ESP_OK) {
+        mag_dev_release();
+        return ESP_FAIL;
+    }
+    err = mag_write_reg(s_mag_dev, QMC_REG_SET_RESET, 0x01);
+    if (err != ESP_OK) {
+        mag_dev_release();
+        return ESP_FAIL;
+    }
     err = mag_write_reg(s_mag_dev, QMC_REG_CTRL1, 0x1D);
     if (err != ESP_OK) {
         mag_dev_release();
         return ESP_FAIL;
+    }
+    esp_rom_delay_us(5000);
+
+    uint8_t chip_id = 0;
+    if (mag_read_regs(s_mag_dev, QMC_REG_CHIP_ID, &chip_id, 1) == ESP_OK) {
+        ESP_LOGI(TAG, "QMC5883L chip ID (reg 0x0D)=0x%02X (datasheet typical 0xFF)", chip_id);
     }
 
     s_type = COMPASS_TYPE_QMC5883;
@@ -339,7 +379,8 @@ static bool read_qmc(float *heading_deg_out)
     update_debug_xy(x, y);
     float heading_base = heading_base_for_output();
 
-    float heading_decl = normalize_heading_deg(heading_base + COMPASS_DECLINATION_DEG);
+    float heading_decl = normalize_heading_deg(heading_base + COMPASS_DECLINATION_DEG +
+                                                COMPASS_HEADING_OFFSET_DEG);
 
     if (!s_heading_filtered_valid) {
         s_heading_filtered_deg = heading_decl;
@@ -366,7 +407,8 @@ static bool read_hmc(float *heading_deg_out)
     update_debug_xy(x, y);
     float heading_base = heading_base_for_output();
 
-    float heading_decl = normalize_heading_deg(heading_base + COMPASS_DECLINATION_DEG);
+    float heading_decl = normalize_heading_deg(heading_base + COMPASS_DECLINATION_DEG +
+                                                COMPASS_HEADING_OFFSET_DEG);
 
     if (!s_heading_filtered_valid) {
         s_heading_filtered_deg = heading_decl;
@@ -410,4 +452,15 @@ bool compass_get_debug(compass_debug_t *out)
     out->heading_cal_deg = s_heading_cal_deg;
     out->calibrated = (s_x_max > s_x_min) && (s_y_max > s_y_min);
     return true;
+}
+
+void compass_format_cardinal(float heading_deg, char *out, size_t out_sz)
+{
+    if (!out || out_sz == 0) {
+        return;
+    }
+    heading_deg = normalize_heading_deg(heading_deg);
+    int idx = (int)((heading_deg + 22.5f) / 45.0f) & 7;
+    static const char *const dirs[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    snprintf(out, out_sz, "%s", dirs[idx]);
 }
