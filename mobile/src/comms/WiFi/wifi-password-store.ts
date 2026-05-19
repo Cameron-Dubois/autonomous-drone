@@ -1,31 +1,42 @@
+import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 
-const KEY_PREFIX = "wifi_pwd:";
-
-/** Normalize SSID for SecureStore keys (Android may add/remove quotes). */
+/** SSID trimming (Android may quote SSIDs). Used before hashing storage keys. */
 export function normalizeWifiSsid(ssid: string): string {
   return ssid.replace(/^"|"$/g, "").trim();
 }
 
-function storageKey(ssid: string): string {
-  return `${KEY_PREFIX}${normalizeWifiSsid(ssid)}`;
+/**
+ * expo-secure-store keys must be non-empty and alphanumeric only (no raw SSIDs with spaces/colons).
+ */
+async function secureStoreKeyForSsid(ssid: string): Promise<string | null> {
+  const t = normalizeWifiSsid(ssid);
+  if (!t) return null;
+  const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, t);
+  return `wifi${digest}`;
 }
 
 export async function getStoredWifiPassword(ssid: string): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(storageKey(ssid));
+    const key = await secureStoreKeyForSsid(ssid);
+    if (!key) return null;
+    return await SecureStore.getItemAsync(key);
   } catch {
     return null;
   }
 }
 
 export async function setStoredWifiPassword(ssid: string, password: string): Promise<void> {
-  await SecureStore.setItemAsync(storageKey(ssid), password);
+  const key = await secureStoreKeyForSsid(ssid);
+  if (!key) throw new Error("Cannot store Wi‑Fi password: SSID is empty.");
+  await SecureStore.setItemAsync(key, password);
 }
 
 export async function clearStoredWifiPassword(ssid: string): Promise<void> {
   try {
-    await SecureStore.deleteItemAsync(storageKey(ssid));
+    const key = await secureStoreKeyForSsid(ssid);
+    if (!key) return;
+    await SecureStore.deleteItemAsync(key);
   } catch {
     // ignore
   }

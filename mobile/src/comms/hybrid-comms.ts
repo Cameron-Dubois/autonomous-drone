@@ -27,6 +27,11 @@ export type HybridComms = DroneComms & {
   syncBleFromExternalConnection(): void;
   /** Call when the app tears down the BLE GATT session (Connect → Disconnect). */
   notifyBleDisconnected(): void;
+  /**
+   * BLE-only uplink — no Wi‑Fi fallback (quiet return if no GATT connection).
+   * Used by Follow-mock so UART logs mirror the UI without bridging over WS.
+   */
+  sendBytesBleOnly(bytes: Uint8Array): Promise<void>;
 };
 
 export function createHybridComms(inner: DroneComms): HybridComms {
@@ -139,6 +144,22 @@ export function createHybridComms(inner: DroneComms): HybridComms {
     await inner.sendBytes(bytes);
   };
 
+  const sendBytesBleOnly = async (bytes: Uint8Array): Promise<void> => {
+    try {
+      const client = getBleClient();
+      if (!client.getConnectedDeviceId()) {
+        await ensureBleConnected();
+      }
+      if (!client.getConnectedDeviceId()) return;
+      await client.sendCommand(bytes);
+      startPoll();
+      startBleHeartbeat();
+      tryAttachBleTelemetry();
+    } catch {
+      /* GATT teardown / Expo stub */
+    }
+  };
+
   return {
     connect: (deviceId?: string) => inner.connect(deviceId),
     disconnect: () => inner.disconnect(),
@@ -146,6 +167,7 @@ export function createHybridComms(inner: DroneComms): HybridComms {
       await sendBytes(buildCommandBytes(cmd));
     },
     sendBytes,
+    sendBytesBleOnly,
 
     subscribeTelemetry(cb: TelemetryCallback): () => void {
       hybridListeners.add(cb);
@@ -196,7 +218,8 @@ export function createHybridComms(inner: DroneComms): HybridComms {
 export function isHybridComms(c: DroneComms): c is HybridComms {
   return (
     typeof (c as HybridComms).syncBleFromExternalConnection === "function" &&
-    typeof (c as HybridComms).notifyBleDisconnected === "function"
+    typeof (c as HybridComms).notifyBleDisconnected === "function" &&
+    typeof (c as HybridComms).sendBytesBleOnly === "function"
   );
 }
 

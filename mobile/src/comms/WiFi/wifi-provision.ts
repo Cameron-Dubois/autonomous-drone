@@ -1,6 +1,5 @@
 import * as Crypto from "expo-crypto";
-import { DRONE_AP_HOST } from "../../stream/droneStream";
-import { probeDroneReachable } from "../../stream/droneStream";
+import { DRONE_AP_HOST, probeDroneReachable } from "../../stream/droneStream";
 
 const DRONE_HTTPS_BASE = `https://${DRONE_AP_HOST}`;
 const FETCH_TIMEOUT_MS = 12_000;
@@ -24,7 +23,7 @@ export class DroneHttpsUnreachableError extends Error {
   }
 }
 
-/** Generate a WPA2-safe random password (default 16 chars). */
+/** Generate a WPA2-safe random password using secure random bytes. */
 export async function generateDroneWifiPassword(length = 16): Promise<string> {
   const bytes = await Crypto.getRandomBytesAsync(length);
   let out = "";
