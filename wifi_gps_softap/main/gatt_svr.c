@@ -26,6 +26,7 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "bleprph.h"
+#include "demo_takeoff.h"
 #include "services/ans/ble_svc_ans.h"
 #include "esp_timer.h"
 #include "mbedtls/base64.h"
@@ -172,15 +173,6 @@ drone_ack_build(const drone_cmd_t *cmd, uint8_t status, uint32_t now_ms,
     out->drone_ms = now_ms;
 }
 
-/* Map 0-255 throttle to 0-1023 LEDC duty (10-bit) and drive the real motor. */
-static void
-drone_apply_motor(motor_t motor_id, uint8_t throttle)
-{
-    int duty = (throttle * 1023) / 255;
-    motor_set_on_off(motor_id, duty > 0);
-    motor_set_speed(motor_id, duty);
-}
-
 int
 drone_handle_command(const drone_cmd_t *cmd)
 {
@@ -197,6 +189,7 @@ drone_handle_command(const drone_cmd_t *cmd)
 
     case DRONE_CMD_DISARM:
         g_drone_armed = false;
+        demo_takeoff_abort();
         drone_set_all_motors(0);
         motors_stop_all();
         MODLOG_DFLT(INFO, "DRONE_CMD_DISARM seq=%u\n", cmd->seq);
@@ -204,6 +197,7 @@ drone_handle_command(const drone_cmd_t *cmd)
 
     case DRONE_CMD_ESTOP:
         g_drone_armed = false;
+        demo_takeoff_abort();
         drone_set_all_motors(0);
         motors_stop_all();
         MODLOG_DFLT(INFO, "DRONE_CMD_ESTOP seq=%u\n", cmd->seq);
@@ -213,12 +207,6 @@ drone_handle_command(const drone_cmd_t *cmd)
     case DRONE_CMD_SET_MOTOR_2:
     case DRONE_CMD_SET_MOTOR_3:
     case DRONE_CMD_SET_MOTOR_4:
-        if (!g_drone_armed) {
-            MODLOG_DFLT(WARN,
-                        "SET_MOTOR ignored while disarmed (id=0x%02x seq=%u)\n",
-                        cmd->cmd, cmd->seq);
-            return -1;
-        }
         if (cmd->payload_len < 1) {
             MODLOG_DFLT(WARN,
                         "SET_MOTOR missing throttle payload (id=0x%02x seq=%u)\n",
@@ -229,10 +217,9 @@ drone_handle_command(const drone_cmd_t *cmd)
             uint8_t throttle = cmd->payload[0];
             motor_t mid = (motor_t)(cmd->cmd - DRONE_CMD_SET_MOTOR_1); /* 0-3 */
             drone_set_motor_index(mid, throttle);
-            drone_apply_motor(mid, throttle);
             MODLOG_DFLT(INFO,
-                        "DRONE_CMD_SET_MOTOR %d seq=%u throttle=%u duty=%d\n",
-                        mid + 1, cmd->seq, throttle, (throttle * 1023) / 255);
+                        "DRONE_CMD_SET_MOTOR %d seq=%u throttle=%u (log-only bench)\n",
+                        mid + 1, cmd->seq, throttle);
         }
         return 0;
 
@@ -278,6 +265,11 @@ drone_handle_command(const drone_cmd_t *cmd)
 
     case DRONE_CMD_NAV_BACKWARD:
         MODLOG_DFLT(INFO, "DRONE_CMD_NAV_BACKWARD seq=%u\n", cmd->seq);
+        return 0;
+
+    case DRONE_CMD_DEMO_TAKEOFF:
+        MODLOG_DFLT(INFO, "DRONE_CMD_DEMO_TAKEOFF seq=%u\n", cmd->seq);
+        demo_takeoff_start();
         return 0;
 
     default:

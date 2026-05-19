@@ -127,17 +127,15 @@ export default function Control() {
     const { contentPadding } = getPanelDimensions(screenWidth, 0);
     const [takeoffActive, setTakeoffActive] = useState(false);
     const [motorPercents, setMotorPercents] = useState([0, 0, 0, 0]);
-    const takeoffIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const takeoffIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         return () => {
             if (takeoffIntervalRef.current) {
-                clearInterval(takeoffIntervalRef.current);
+                clearTimeout(takeoffIntervalRef.current);
             }
         };
     }, []);
-
-    const THROTTLE_0 = 0;
 
     const percentToThrottle = (p: number) => Math.round(255 * Math.min(100, Math.max(0, p)) / 100);
 
@@ -178,54 +176,37 @@ export default function Control() {
     }, [comms, motorPercents, sendMotor]);
 
     const handleTakeoff = useCallback(async () => {
-        // Clear any existing takeoff ramp
         if (takeoffIntervalRef.current) {
-            clearInterval(takeoffIntervalRef.current);
+            clearTimeout(takeoffIntervalRef.current);
             takeoffIntervalRef.current = null;
         }
-
-        await comms.send({ type: "ARM" });
-        setTakeoffActive(true);
-
-        const allMotors = [
-            DroneCmd.SET_MOTOR_1,
-            DroneCmd.SET_MOTOR_2,
-            DroneCmd.SET_MOTOR_3,
-            DroneCmd.SET_MOTOR_4,
-        ];
-
-        // Start at 10%
-        setMotorPercents([10, 10, 10, 10]);
-        let currentPercent = 10;
-        await sendMotors(allMotors, percentToThrottle(currentPercent));
-
-        // Every 1 second, increase by 5% until 100%
-        takeoffIntervalRef.current = setInterval(async () => {
-            currentPercent = Math.min(currentPercent + 5, 100);
-            setMotorPercents([currentPercent, currentPercent, currentPercent, currentPercent]);
-            await sendMotors(allMotors, percentToThrottle(currentPercent));
-            if (currentPercent >= 100) {
-                if (takeoffIntervalRef.current) {
-                    clearInterval(takeoffIntervalRef.current);
-                    takeoffIntervalRef.current = null;
-                }
-            }
-        }, 1000);
-    }, [comms, sendMotors]);
+        try {
+            await comms.send({ type: "TAKEOFF" });
+            setTakeoffActive(true);
+            setMotorPercents([0, 0, 0, 0]);
+            // Cosmetic: firmware runs ~10s ramp (25% max, 2s per step).
+            takeoffIntervalRef.current = setTimeout(() => {
+                setTakeoffActive(false);
+                takeoffIntervalRef.current = null;
+            }, 12000);
+        } catch (e) {
+            console.log("Takeoff send failed:", e);
+        }
+    }, [comms]);
 
     const handleLand = useCallback(async () => {
         if (takeoffIntervalRef.current) {
-            clearInterval(takeoffIntervalRef.current);
+            clearTimeout(takeoffIntervalRef.current);
             takeoffIntervalRef.current = null;
         }
-        await comms.send({ type: "LAND" });
+        try {
+            await comms.send({ type: "LAND" });
+        } catch (e) {
+            console.log("Land send failed:", e);
+        }
         setTakeoffActive(false);
         setMotorPercents([0, 0, 0, 0]);
-        await sendMotors(
-            [DroneCmd.SET_MOTOR_1, DroneCmd.SET_MOTOR_2, DroneCmd.SET_MOTOR_3, DroneCmd.SET_MOTOR_4],
-            THROTTLE_0,
-        );
-    }, [comms, sendMotors]);
+    }, [comms]);
 
     return (
         <View style={styles.root}>
@@ -256,8 +237,8 @@ export default function Control() {
                 <View style={styles.quickActions}>
                     <Text style={styles.label}>Quick Actions</Text>
                     <View style={styles.actionRow}>
-                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={handleTakeoff}>
-                            <Text style={styles.btnLabel}>Takeoff</Text>
+                        <Pressable style={[styles.btn, styles.btnSmall]} onPress={handleTakeoff} disabled={takeoffActive}>
+                            <Text style={styles.btnLabel}>{takeoffActive ? "Ramping…" : "Takeoff"}</Text>
                         </Pressable>
                         <Pressable style={[styles.btn, styles.btnSmall]} onPress={handleLand}>
                             <Text style={styles.btnLabel}>Land</Text>
