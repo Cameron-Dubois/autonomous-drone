@@ -24,9 +24,10 @@ Out of the box, the SoftAP uses the **factory password** from menuconfig (`Examp
 |----------|--------|---------|
 | `/wifi/status` | GET | `{ "provisioned": bool, "ssid": "..." }` |
 | `/wifi/provision` | POST | First-time only; body `{ "password", "factoryPassword" }` |
+| `/wifi/rotate-password` | POST | Already provisioned; body `{ "password", "currentPassword" }` sets new PSK |
 | `/wifi/factory-reset` | POST | When provisioned; body `{ "currentPassword" }` restores factory password |
 
-Factory reset is also available in the app **Connect** tab when Wi‑Fi is connected. Developer fallback: `idf.py erase-flash` clears NVS.
+Factory reset and rotate are available from the mobile app **Connect** tab when Wi‑Fi is linked. Developer fallback: `idf.py erase-flash` clears NVS.
 
 The mobile app factory default must match menuconfig (or set `EXPO_PUBLIC_DRONE_WIFI_DEFAULT_PASSWORD` at build time). See [`mobile/src/config/drone-defaults.ts`](../mobile/src/config/drone-defaults.ts).
 
