@@ -69,6 +69,8 @@ void demo_takeoff_start(void)
         return;
     }
 
+    motors_runtime_prepare();
+
     s_abort = false;
     s_running = true;
 

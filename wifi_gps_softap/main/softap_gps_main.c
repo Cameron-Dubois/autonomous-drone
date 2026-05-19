@@ -422,9 +422,10 @@ void app_main(void)
     wifi_softap_init();
     start_https_server();
 
-    motors_init();
-    motors_start_background_tick();
+    /* BLE before motors: DSHOT tick masks IRQs and starves NimBLE on ESP32-C3. */
     wifi_gps_ble_stack_start();
+
+    /* Motors init deferred until DEMO_TAKEOFF / motors_runtime_prepare() — see motor_tick_task.c */
 
     gps_uart_init();
     esp_err_t cerr = compass_init();

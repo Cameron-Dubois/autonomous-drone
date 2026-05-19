@@ -205,6 +205,7 @@ bleprph_advertise(void)
         MODLOG_DFLT(ERROR, "error enabling advertisement; rc=%d\n", rc);
         return;
     }
+    ESP_LOGI(tag, "BLE advertising as \"%s\"", name);
 }
 #endif
 
