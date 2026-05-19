@@ -18,12 +18,39 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { getBleClient, setStoredDeviceId, type BleDeviceSummary } from "../../../src/comms/BLE";
 import { spacing, fontSizes, radii, tabBarHeight } from "../../../src/theme/layout";
+import * as Clipboard from "expo-clipboard";
 import { getWifiClient, type WifiNetworkSummary } from "../../../src/comms/WiFi";
+import {
+  clearStoredWifiPassword,
+  getStoredWifiPassword,
+  setStoredWifiPassword,
+} from "../../../src/comms/WiFi/wifi-password-store";
+import {
+  delay,
+  factoryResetWifi,
+  fetchWifiStatus,
+  generateDroneWifiPassword,
+  provisionWifi,
+} from "../../../src/comms/WiFi/wifi-provision";
 import { isHybridComms } from "../../../src/comms/hybrid-comms";
+import { DRONE_WIFI_FACTORY_PASSWORD } from "../../../src/config/drone-defaults";
 import { useComms } from "../../../src/context/CommsContext";
+import { probeDroneReachable } from "../../../src/stream/droneStream";
 
 const SCAN_TIMEOUT_MS = 5000;
 const WIFI_SCAN_TIMEOUT_MS = 2500;
+const DRONE_ONLINE_WAIT_MS = 20_000;
+
+async function waitForDroneOnline(maxMs = DRONE_ONLINE_WAIT_MS): Promise<boolean> {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    if (await probeDroneReachable(2500)) {
+      return true;
+    }
+    await delay(1500);
+  }
+  return false;
+}
 
 function formatRssi(rssi?: number): string {
   if (rssi == null) return "—";
@@ -52,6 +79,10 @@ export default function Connect() {
   const [cmdLog, setCmdLog] = useState<{ text: string; ok: boolean }[]>([]);
   const [securedJoinNetwork, setSecuredJoinNetwork] = useState<WifiNetworkSummary | null>(null);
   const [securedWifiPassword, setSecuredWifiPassword] = useState("");
+  const [provisionedPwdModal, setProvisionedPwdModal] = useState<{ ssid: string; password: string } | null>(
+    null
+  );
+  const [wifiProvisioning, setWifiProvisioning] = useState(false);
 
   const refreshWifiState = useCallback(async () => {
     try {
@@ -165,17 +196,68 @@ export default function Connect() {
     }
   }, []);
 
+  const completeWifiJoin = useCallback(
+    async (network: WifiNetworkSummary, passwordUsed: string) => {
+      setWifiProvisioning(true);
+      try {
+        let status = await fetchWifiStatus();
+
+        if (!status.provisioned) {
+          if (!passwordUsed) {
+            throw new Error("Factory Wi‑Fi password is required for first-time setup.");
+          }
+          const newPassword = generateDroneWifiPassword();
+          await provisionWifi(newPassword, passwordUsed);
+          await setStoredWifiPassword(status.ssid, newPassword);
+          setProvisionedPwdModal({ ssid: status.ssid, password: newPassword });
+
+          await delay(500);
+          const online = await waitForDroneOnline();
+          if (!online) {
+            throw new Error(
+              "Drone did not come back online after password change. Reconnect manually with the new password shown."
+            );
+          }
+
+          const client = getWifiClient();
+          await client.connect(network.id, newPassword);
+          if (typeof client.refreshConnectionStatus === "function") {
+            await client.refreshConnectionStatus();
+            setWifiRefresh((n) => n + 1);
+          }
+
+          status = await fetchWifiStatus();
+          if (!status.provisioned) {
+            throw new Error("Provisioning did not complete on the drone.");
+          }
+        } else if (passwordUsed) {
+          const stored = await getStoredWifiPassword(network.ssid);
+          if (!stored) {
+            await setStoredWifiPassword(network.ssid, passwordUsed);
+          }
+        }
+
+        void comms.connect();
+      } finally {
+        setWifiProvisioning(false);
+      }
+    },
+    [comms]
+  );
+
   const joinWifiNetwork = useCallback(
     async (network: WifiNetworkSummary, password?: string) => {
       setWifiError(null);
       try {
         const client = getWifiClient();
-        await client.connect(network.id, password);
+        const joinPassword =
+          password ?? (await getStoredWifiPassword(network.ssid)) ?? undefined;
+        await client.connect(network.id, joinPassword);
         if (typeof client.refreshConnectionStatus === "function") {
           await client.refreshConnectionStatus();
           setWifiRefresh((n) => n + 1);
         }
-        void comms.connect();
+        await completeWifiJoin(network, joinPassword ?? "");
         setSecuredJoinNetwork(null);
         setSecuredWifiPassword("");
       } catch (e) {
@@ -183,11 +265,16 @@ export default function Connect() {
         Alert.alert("Connection failed", e instanceof Error ? e.message : "Could not connect to network.");
       }
     },
-    [comms]
+    [completeWifiJoin]
   );
 
   const handleWifiConnect = useCallback(
-    (network: WifiNetworkSummary) => {
+    async (network: WifiNetworkSummary) => {
+      const stored = await getStoredWifiPassword(network.ssid);
+      if (stored) {
+        void joinWifiNetwork(network, stored);
+        return;
+      }
       if (network.secured && Platform.OS === "android") {
         setSecuredJoinNetwork(network);
         setSecuredWifiPassword("");
@@ -293,6 +380,58 @@ export default function Connect() {
     }
   })();
 
+  const handleFactoryResetWifi = useCallback(() => {
+    const ssid = connectedWifiId;
+    if (!ssid || !isWifiLinked) {
+      return;
+    }
+
+    Alert.alert(
+      "Reset drone Wi‑Fi?",
+      "Restores the factory Wi‑Fi password. You will need to reconnect using the default password.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setWifiError(null);
+              setWifiProvisioning(true);
+              try {
+                const stored = await getStoredWifiPassword(ssid);
+                if (!stored) {
+                  Alert.alert(
+                    "Password required",
+                    "No stored Wi‑Fi password for this network. Connect once with your drone password, then try again."
+                  );
+                  return;
+                }
+                await factoryResetWifi(stored);
+                await clearStoredWifiPassword(ssid);
+                await comms.disconnect();
+                const client = getWifiClient();
+                await client.disconnect();
+                await client.refreshConnectionStatus();
+                setWifiRefresh((n) => n + 1);
+                Alert.alert(
+                  "Wi‑Fi reset",
+                  `Factory password restored. Reconnect using: ${DRONE_WIFI_FACTORY_PASSWORD}`
+                );
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : "Factory reset failed";
+                setWifiError(msg);
+                Alert.alert("Reset failed", msg);
+              } finally {
+                setWifiProvisioning(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
+  }, [comms, connectedWifiId, isWifiLinked]);
+
   const contentTop = insets.top + spacing.lg;
   const contentBottom = insets.bottom + (tabBarHeight ?? 56) + spacing.xl;
 
@@ -312,6 +451,9 @@ export default function Connect() {
             <Text style={styles.modalTitle}>Wi‑Fi password</Text>
             <Text style={styles.modalSubtitle} numberOfLines={2}>
               {securedJoinNetwork?.ssid ?? ""}
+            </Text>
+            <Text style={styles.modalHint}>
+              First connection: use the factory password from your drone manual.
             </Text>
             <TextInput
               style={styles.modalInput}
@@ -339,6 +481,46 @@ export default function Connect() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <Modal
+        visible={provisionedPwdModal != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setProvisionedPwdModal(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Drone Wi‑Fi password set</Text>
+            <Text style={styles.modalSubtitle}>
+              Save this password — you need it if you reinstall the app or use another phone.
+            </Text>
+            <Text style={styles.provisionedPassword} selectable>
+              {provisionedPwdModal?.password ?? ""}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.btn, styles.modalBtn]}
+                onPress={() => {
+                  void Clipboard.setStringAsync(provisionedPwdModal?.password ?? "");
+                }}
+              >
+                <Text style={styles.btnLabel}>Copy</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.btn, styles.modalBtn, styles.btnPrimary]}
+                onPress={() => setProvisionedPwdModal(null)}
+              >
+                <Text style={styles.btnLabel}>Done</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {wifiProvisioning ? (
+        <View style={styles.provisioningOverlay}>
+          <ActivityIndicator color="#fff" size="large" />
+          <Text style={styles.provisioningText}>Setting up drone Wi‑Fi…</Text>
+        </View>
+      ) : null}
       <ScrollView
         style={styles.scrollView}
         keyboardShouldPersistTaps="handled"
@@ -545,6 +727,17 @@ export default function Connect() {
               </View>
             )}
 
+            {isWifiLinked && (
+              <Pressable
+                style={[styles.btn, styles.btnSecondary, styles.wifiSettingsBtn]}
+                onPress={handleFactoryResetWifi}
+                disabled={wifiProvisioning}
+                hitSlop={8}
+              >
+                <Text style={styles.btnLabel}>Reset drone Wi‑Fi to factory</Text>
+              </Pressable>
+            )}
+
             <View style={styles.deviceList}>
               <Text style={styles.label}>Available Networks</Text>
               {Platform.OS === "ios" && wifiNetworks.length === 0 && wifiStatus !== "scanning" ? (
@@ -566,7 +759,7 @@ export default function Connect() {
                   <Pressable
                     style={[styles.btn, styles.btnSmall]}
                     onPress={() => handleWifiConnect(n)}
-                    disabled={isWifiLinked}
+                    disabled={isWifiLinked || wifiProvisioning}
                   >
                     <Text style={styles.btnLabel}>
                       {connectedWifiId === n.id ? "Connected" : "Connect"}
@@ -811,5 +1004,32 @@ const styles = StyleSheet.create({
     modalBtn: {
         flex: 1,
         minHeight: 52,
+    },
+    modalHint: {
+        fontSize: fontSizes.xs,
+        color: "rgba(255,255,255,0.35)",
+        marginBottom: spacing.md,
+    },
+    provisionedPassword: {
+        fontSize: fontSizes.md,
+        fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+        color: "rgba(0,242,255,0.9)",
+        padding: spacing.md,
+        borderRadius: radii.sm,
+        backgroundColor: "rgba(0,242,255,0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(0,242,255,0.2)",
+    },
+    provisioningOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(5,7,10,0.85)",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+    },
+    provisioningText: {
+        marginTop: spacing.lg,
+        fontSize: fontSizes.sm,
+        color: "rgba(255,255,255,0.7)",
     },
 });
