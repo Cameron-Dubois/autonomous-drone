@@ -22,7 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DroneComms } from "../comms/comms";
-import { buildRawCommandBytes, DroneCmd } from "../protocol/types";
+import { buildRawCommandBytes, DroneCmd, navIntentCommandId } from "../protocol/types";
 import type { NavigationSnapshot } from "../nav/types";
 
 import {
@@ -112,6 +112,12 @@ export function useFollowMockController(
     lastThrottlesRef.current = throttles;
   }, []);
 
+  const sendNavIntent = useCallback((phase: FollowState, yawErrorDeg: number | null) => {
+    const cmdId = navIntentCommandId(phase, yawErrorDeg);
+    if (cmdId == null) return;
+    void commsRef.current.sendBytes(buildRawCommandBytes(cmdId, []));
+  }, []);
+
   const tick = useCallback(() => {
     const snap = snapshotRef.current;
     const cfg = cfgRef.current;
@@ -121,10 +127,15 @@ export function useFollowMockController(
     const fresh =
       snap.generatedAtMs > 0 ? nowMs - snap.generatedAtMs <= staleSnapshotMs : true;
 
+    const prevState = stateRef.current;
     const out = evaluateFollowMock(
       { state: stateRef.current, snapshot: snap, running: fresh },
       cfg
     );
+
+    if (fresh && out.nextState !== prevState) {
+      sendNavIntent(out.nextState, snap.yawErrorDeg);
+    }
 
     stateRef.current = out.nextState;
     sendThrottles(out.motorThrottles, false);
@@ -135,7 +146,7 @@ export function useFollowMockController(
       throttles: out.motorThrottles,
       reason: fresh ? out.reason : "watchdog: snapshot stale",
     });
-  }, [sendThrottles, staleSnapshotMs]);
+  }, [sendThrottles, sendNavIntent, staleSnapshotMs]);
 
   const start = useCallback(() => {
     if (intervalRef.current != null) return;
@@ -156,8 +167,12 @@ export function useFollowMockController(
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    const wasActive = stateRef.current !== "IDLE";
     // Force-write zeros so a biased motor cannot keep spinning after stop.
     sendThrottles(ZERO_THROTTLES, true);
+    if (wasActive) {
+      sendNavIntent("IDLE", null);
+    }
     stateRef.current = "IDLE";
     setView({
       state: "IDLE",
@@ -165,7 +180,7 @@ export function useFollowMockController(
       throttles: ZERO_THROTTLES,
       reason: "stopped",
     });
-  }, [sendThrottles]);
+  }, [sendThrottles, sendNavIntent]);
 
   // Unmount: clear interval, send final zero-write defensively.
   useEffect(() => {

@@ -1,6 +1,6 @@
 /**
  * No-op motor layer for ESP32-C3 unified firmware (pins differ from classic ESP32).
- * Keeps drone_ble gatt_svr.c command handlers linkable without driving PWM.
+ * Satisfies gatt_svr.c command handlers without driving PWM on this build.
  */
 #include "motor.h"
 #include "esp_log.h"

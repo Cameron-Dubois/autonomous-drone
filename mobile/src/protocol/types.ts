@@ -1,4 +1,4 @@
-/** Command IDs matching drone_ble/main/bleprph.h drone_cmd_id_t */
+/** Command IDs matching wifi_gps_softap/main/bleprph.h drone_cmd_id_t */
 export const DroneCmd = {
   NOP:            0x00,
   ARM:            0x01,
@@ -12,7 +12,69 @@ export const DroneCmd = {
   ASCEND:         0x30,
   DESCEND:        0x31,
   FOLLOW_TOGGLE:  0x32,
+  LOST_TOGGLE:    0x33,
+  NAV_ROTATE_CW:    0x34,
+  NAV_ROTATE_CCW:   0x35,
+  NAV_FORWARD:      0x36,
+  NAV_STRAFE_LEFT:  0x37,
+  NAV_STRAFE_RIGHT: 0x38,
+  NAV_HOLD:         0x39,
+  NAV_IDLE:         0x3A,
+  NAV_BACKWARD:     0x3B,
 } as const;
+
+/** Human-readable names for debug / serial correlation. */
+export const DRONE_CMD_NAMES: Record<number, string> = {
+  [DroneCmd.NOP]:            "NOP",
+  [DroneCmd.ARM]:            "ARM",
+  [DroneCmd.DISARM]:         "DISARM",
+  [DroneCmd.ESTOP]:          "ESTOP",
+  [DroneCmd.SET_MOTOR_1]:    "SET_MOTOR_1",
+  [DroneCmd.SET_MOTOR_2]:    "SET_MOTOR_2",
+  [DroneCmd.SET_MOTOR_3]:    "SET_MOTOR_3",
+  [DroneCmd.SET_MOTOR_4]:    "SET_MOTOR_4",
+  [DroneCmd.HEARTBEAT]:      "HEARTBEAT",
+  [DroneCmd.ASCEND]:         "ASCEND",
+  [DroneCmd.DESCEND]:        "DESCEND",
+  [DroneCmd.FOLLOW_TOGGLE]:  "FOLLOW_TOGGLE",
+  [DroneCmd.LOST_TOGGLE]:    "LOST_TOGGLE",
+  [DroneCmd.NAV_ROTATE_CW]:    "NAV_ROTATE_CW",
+  [DroneCmd.NAV_ROTATE_CCW]:   "NAV_ROTATE_CCW",
+  [DroneCmd.NAV_FORWARD]:      "NAV_FORWARD",
+  [DroneCmd.NAV_STRAFE_LEFT]:  "NAV_STRAFE_LEFT",
+  [DroneCmd.NAV_STRAFE_RIGHT]: "NAV_STRAFE_RIGHT",
+  [DroneCmd.NAV_HOLD]:         "NAV_HOLD",
+  [DroneCmd.NAV_IDLE]:         "NAV_IDLE",
+  [DroneCmd.NAV_BACKWARD]:     "NAV_BACKWARD",
+};
+
+export function describeDroneCmd(cmdId: number): string {
+  return DRONE_CMD_NAMES[cmdId & 0xff] ?? `CMD_0x${(cmdId & 0xff).toString(16).padStart(2, "0")}`;
+}
+
+/** Follow-mock / autonomy phase labels mapped to NAV intent opcodes. */
+export type AutonomyPhase = "IDLE" | "ROTATE" | "FORWARD" | "HOLD" | "RETREAT";
+
+export function navIntentCommandId(
+  phase: AutonomyPhase,
+  yawErrorDeg: number | null
+): number | null {
+  switch (phase) {
+    case "IDLE":
+      return DroneCmd.NAV_IDLE;
+    case "FORWARD":
+      return DroneCmd.NAV_FORWARD;
+    case "HOLD":
+      return DroneCmd.NAV_HOLD;
+    case "RETREAT":
+      return DroneCmd.NAV_BACKWARD;
+    case "ROTATE":
+      if (yawErrorDeg == null) return DroneCmd.NAV_IDLE;
+      return yawErrorDeg >= 0 ? DroneCmd.NAV_ROTATE_CW : DroneCmd.NAV_ROTATE_CCW;
+    default:
+      return null;
+  }
+}
 
 export type Command =
   | { type: "FOLLOW_TOGGLE" }

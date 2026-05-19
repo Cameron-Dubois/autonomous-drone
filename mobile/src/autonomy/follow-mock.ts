@@ -6,6 +6,7 @@
  *   IDLE     -> stopped or no usable fixes; emits zeros
  *   ROTATE   -> drone needs to yaw to face phone; biases yaw motors
  *   FORWARD  -> drone is facing phone; biases nose-down motors
+ *   RETREAT  -> too close to phone; biases nose-up motors to open distance
  *   HOLD     -> within arrival radius; emits zeros
  *
  * Motor map (from flight_control/main/main.c corner comments):
@@ -16,6 +17,7 @@
  *   YAW CW (turn right, yawError > 0)    : M1+, M4+ ; M2-, M3-   (CCW props spin faster)
  *   YAW CCW (turn left,  yawError < 0)   : M1-, M4- ; M2+, M3+
  *   FORWARD (tilt nose down, translate)  : M1+, M3+ ; M2-, M4-   (back motors spin faster)
+ *   BACKWARD (tilt nose up, retreat)       : M1-, M3- ; M2+, M4+   (front motors spin faster)
  *
  * This is a bench demo. `flight_control` only honors SET_MOTOR while DISARMED,
  * so even if these throttles drive real motors they cannot produce flight.
@@ -23,13 +25,17 @@
 
 import type { NavigationSnapshot } from "../nav/types";
 
-export type FollowState = "IDLE" | "ROTATE" | "FORWARD" | "HOLD";
+export type FollowState = "IDLE" | "ROTATE" | "FORWARD" | "HOLD" | "RETREAT";
 
 export type FollowMockConfig = {
   /** distance (m) at which we consider "arrived" and stop motion */
   arrivalRadiusM: number;
   /** extra distance band beyond arrivalRadius before HOLD exits back to FORWARD */
   arrivalHysteresisM: number;
+  /** distance (m) below which we retreat to maintain minimum standoff */
+  minStandoffM: number;
+  /** extra band beyond minStandoff before RETREAT exits back to approach */
+  standoffHysteresisM: number;
   /** abs yaw error (deg) below which ROTATE transitions to FORWARD */
   rotateExitDeg: number;
   /** abs yaw error (deg) above which FORWARD transitions back to ROTATE */
@@ -40,16 +46,21 @@ export type FollowMockConfig = {
   yawBias: number;
   /** motor throttle delta (0..255) used for forward mix */
   forwardBias: number;
+  /** motor throttle delta (0..255) used for backward / retreat mix */
+  backwardBias: number;
 };
 
 export const DEFAULT_FOLLOW_MOCK_CONFIG: FollowMockConfig = {
   arrivalRadiusM: 3.0,
   arrivalHysteresisM: 0.5,
+  minStandoffM: 1.5,
+  standoffHysteresisM: 0.5,
   rotateExitDeg: 10,
   rotateReentryDeg: 25,
   baseThrottle: 0,
   yawBias: 40,
   forwardBias: 40,
+  backwardBias: 40,
 };
 
 export type FollowMockInputs = {
@@ -116,8 +127,40 @@ function mixForward(cfg: FollowMockConfig): MotorThrottles {
   ];
 }
 
+function mixBackward(cfg: FollowMockConfig): MotorThrottles {
+  const base = cfg.baseThrottle;
+  const b = cfg.backwardBias;
+  // Inverse of forward: front motors faster -> nose tilts up -> retreat
+  return [
+    clamp255(base - b),
+    clamp255(base + b),
+    clamp255(base - b),
+    clamp255(base + b),
+  ];
+}
+
 function fmt(value: number, digits = 2): string {
   return Number.isFinite(value) ? value.toFixed(digits) : "?";
+}
+
+function approachFromRetreat(
+  distance: number,
+  yawError: number,
+  absYaw: number,
+  cfg: FollowMockConfig
+): FollowMockOutput {
+  if (absYaw > cfg.rotateReentryDeg) {
+    return {
+      nextState: "ROTATE",
+      motorThrottles: mixRotate(yawError >= 0 ? 1 : -1, cfg),
+      reason: `retreat->rotate dist=${fmt(distance)}m yaw=${fmt(yawError, 1)}°`,
+    };
+  }
+  return {
+    nextState: "FORWARD",
+    motorThrottles: mixForward(cfg),
+    reason: `retreat->forward dist=${fmt(distance)}m`,
+  };
 }
 
 export function evaluateFollowMock(
@@ -141,6 +184,27 @@ export function evaluateFollowMock(
   const distance = snapshot.distancePhoneToDrone_m as number;
   const yawError = snapshot.yawErrorDeg as number;
   const absYaw = Math.abs(yawError);
+
+  // RETREAT: stay until distance clears min standoff + hysteresis.
+  if (state === "RETREAT") {
+    if (distance >= cfg.minStandoffM + cfg.standoffHysteresisM) {
+      return approachFromRetreat(distance, yawError, absYaw, cfg);
+    }
+    return {
+      nextState: "RETREAT",
+      motorThrottles: mixBackward(cfg),
+      reason: `retreat dist=${fmt(distance)}m (< ${fmt(cfg.minStandoffM)}m)`,
+    };
+  }
+
+  // Too close — retreat takes priority over hold / approach.
+  if (distance < cfg.minStandoffM) {
+    return {
+      nextState: "RETREAT",
+      motorThrottles: mixBackward(cfg),
+      reason: `too close dist=${fmt(distance)}m -> retreat`,
+    };
+  }
 
   // HOLD: stay until distance exceeds radius + hysteresis (avoids edge flicker).
   if (state === "HOLD") {
