@@ -175,22 +175,62 @@ export default function HomeScreen() {
                         )}
                     </View>
 
-                    <View style={styles.distanceSection}>
-                        <Text style={styles.label}>DISTANCE (PHONE ↔ DRONE)</Text>
-                        <Text
-                            style={[
-                                styles.distanceHero,
-                                distancePhoneDroneM != null ? styles.teal : styles.droneCoordsMuted,
-                            ]}
-                        >
-                            {distancePhoneDroneM != null ? `${distancePhoneDroneM.toFixed(1)} m` : "—"}
-                        </Text>
+                    <View style={styles.navMetricsSection}>
+                        <View style={styles.navMetricsRow}>
+                            <View style={styles.navMetricCol}>
+                                <Text style={styles.navMetricHeading}>DISTANCE</Text>
+                                <Text
+                                    style={[
+                                        styles.navMetricValue,
+                                        distancePhoneDroneM != null ? styles.teal : styles.droneCoordsMuted,
+                                    ]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.75}
+                                >
+                                    {distLabel}
+                                </Text>
+                                <Text style={styles.navMetricUnit}>phone ↔ drone</Text>
+                            </View>
+                            <View style={styles.navMetricCol}>
+                                <Text style={styles.navMetricHeading}>BEARING</Text>
+                                <Text
+                                    style={[
+                                        styles.navMetricValue,
+                                        navSnap.bearingDroneToPhone_deg != null ? styles.teal : styles.droneCoordsMuted,
+                                    ]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.75}
+                                >
+                                    {bearLabel}
+                                </Text>
+                                <Text style={styles.navMetricUnit}>to phone</Text>
+                            </View>
+                            <View style={styles.navMetricCol}>
+                                <Text style={styles.navMetricHeading}>BARO ALT</Text>
+                                <Text
+                                    style={[
+                                        styles.navMetricValue,
+                                        tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
+                                    ]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.75}
+                                >
+                                    {tel.droneBaroOk
+                                        ? `${tel.altM >= 0 ? "+" : ""}${tel.altM} m`
+                                        : "—"}
+                                </Text>
+                                <Text style={styles.navMetricUnit}>rel · baro</Text>
+                            </View>
+                        </View>
                         <Text style={styles.phoneSub}>
                             {navSnap.distancePhoneToDrone_m != null
-                                ? "High-accuracy phone fix + drone GPS (great-circle)."
+                                ? "Distance: high-accuracy phone fix + drone GPS (great-circle)."
                                 : fallbackDistanceM != null
-                                  ? "Great-circle from current coordinates (nav waiting on GPS quality or age)."
-                                  : "Needs reliable phone and drone lat/lon."}
+                                  ? "Distance: great-circle from coordinates (nav waiting on GPS quality or age)."
+                                  : "Distance needs reliable phone and drone lat/lon."}
                         </Text>
                     </View>
 
@@ -212,18 +252,6 @@ export default function HomeScreen() {
                             {" · "}
                             {linkLabel}
                         </Text>
-                        <Text
-                            style={[
-                                styles.mono,
-                                styles.droneAlt,
-                                tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
-                            ]}
-                        >
-                            {tel.droneBaroOk
-                                ? `${tel.altM >= 0 ? "+" : ""}${tel.altM} m`
-                                : "— m"}
-                            <Text style={styles.droneAltUnit}>  alt (baro, rel)</Text>
-                        </Text>
                     </View>
 
                     <View style={styles.baroTestSection}>
@@ -241,30 +269,9 @@ export default function HomeScreen() {
                                     {tel.droneBaroOk ? "true" : "false"}
                                 </Text>
                             </View>
-                            <View style={styles.baroTestRow}>
-                                <Text style={styles.baroTestK}>altM (JSON)</Text>
-                                <Text
-                                    style={[
-                                        styles.mono,
-                                        { marginTop: 0 },
-                                        tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
-                                    ]}
-                                >
-                                    {tel.droneBaroOk ? String(tel.altM) : "—"}
-                                </Text>
-                            </View>
-                            <Text
-                                style={[
-                                    styles.baroTestHero,
-                                    tel.droneBaroOk ? styles.teal : styles.droneCoordsMuted,
-                                ]}
-                            >
-                                {tel.droneBaroOk
-                                    ? `${tel.altM >= 0 ? "+" : ""}${tel.altM} m`
-                                    : "— m"}
-                            </Text>
                             <Text style={styles.baroTestHint}>
-                                Relative Δ vs first good pressure sample after boot (firmware baseline).
+                                Altitude shown above is relative Δ vs first good pressure sample after boot (firmware
+                                baseline).
                             </Text>
                         </View>
                     </View>
@@ -286,12 +293,6 @@ export default function HomeScreen() {
                         </View>
 
                         <View style={styles.followReadouts}>
-                            <Text style={styles.followReadoutItem}>
-                                dist <Text style={styles.followReadoutValue}>{distLabel}</Text>
-                            </Text>
-                            <Text style={styles.followReadoutItem}>
-                                bear <Text style={styles.followReadoutValue}>{bearLabel}</Text>
-                            </Text>
                             <Text style={styles.followReadoutItem}>
                                 yaw err <Text style={styles.followReadoutValue}>{yawErrLabel}</Text>
                             </Text>
@@ -375,13 +376,38 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         justifyContent: "space-between",
     },
     phoneSection: { marginTop: spacing.xxl },
-    distanceSection: { marginTop: spacing.xl },
-    distanceHero: {
+    navMetricsSection: { marginTop: spacing.xl },
+    navMetricsRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        gap: spacing.sm,
         marginTop: spacing.sm,
-        fontSize: fontSizes.xxxl * 0.55,
+    },
+    navMetricCol: {
+        flex: 1,
+        minWidth: 0,
+        alignItems: "center",
+    },
+    navMetricHeading: {
+        fontSize: fontSizes.xs,
+        letterSpacing: 1.2,
+        color: "rgba(255,255,255,0.4)",
+        textAlign: "center",
+    },
+    navMetricValue: {
+        marginTop: spacing.xs,
+        fontSize: Math.round(fontSizes.xxxl * 0.62),
         fontWeight: "800",
         fontVariant: ["tabular-nums"],
-        letterSpacing: -1,
+        letterSpacing: -0.5,
+        textAlign: "center",
+    },
+    navMetricUnit: {
+        marginTop: 4,
+        fontSize: fontSizes.xs - 2,
+        color: "rgba(255,255,255,0.32)",
+        letterSpacing: 0.4,
+        textAlign: "center",
     },
     droneSection: { marginTop: spacing.xl },
     baroTestSection: { marginTop: spacing.xl },
@@ -397,18 +423,12 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "baseline",
-        marginBottom: spacing.xs,
+        marginBottom: 0,
     },
     baroTestK: {
         fontSize: fontSizes.xs,
         color: "rgba(255,255,255,0.35)",
         letterSpacing: 0.5,
-        fontVariant: ["tabular-nums"],
-    },
-    baroTestHero: {
-        marginTop: spacing.sm,
-        fontSize: fontSizes.xxl,
-        fontWeight: "800",
         fontVariant: ["tabular-nums"],
     },
     baroTestHint: {
@@ -418,18 +438,6 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         letterSpacing: 0.3,
     },
     droneCoordsMuted: { color: "rgba(255,255,255,0.45)" },
-    droneAlt: {
-        marginTop: spacing.sm,
-        fontSize: fontSizes.lg,
-        fontVariant: ["tabular-nums"],
-        fontWeight: "700",
-    },
-    droneAltUnit: {
-        fontSize: fontSizes.xs,
-        fontWeight: "400",
-        color: "rgba(255,255,255,0.4)",
-        letterSpacing: 1.5,
-    },
     phoneCoords: { fontVariant: ["tabular-nums"] },
     phoneSub: {
         marginTop: 6,
@@ -456,15 +464,18 @@ const getStyles = (screenWidth: number, screenHeight: number) => {
         gap: spacing.sm,
     },
     phaseChip: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        borderRadius: radii.sm,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm + 2,
+        borderRadius: radii.md,
         borderWidth: 1,
+        minWidth: 112,
+        alignItems: "center",
+        justifyContent: "center",
     },
     phaseChipText: {
-        fontSize: fontSizes.xs,
+        fontSize: fontSizes.lg,
         fontWeight: "800",
-        letterSpacing: 1,
+        letterSpacing: 1.5,
     },
     followReason: {
         flex: 1,

@@ -12,6 +12,7 @@
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "platforms": ["ios", "android"],
     "assetBundlePatterns": [
       "**/*"
     ],
