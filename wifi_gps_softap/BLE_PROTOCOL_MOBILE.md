@@ -92,8 +92,9 @@ Defined in:
 | `0x39` | `NAV_HOLD` | Autonomy intent: hold / standoff band |
 | `0x3A` | `NAV_IDLE` | Autonomy intent: idle / stopped |
 | `0x3B` | `NAV_BACKWARD` | Autonomy intent: retreat (too close) |
+| `0x3C` | `DEMO_TAKEOFF` | **Motor demo:** onboard ramp all motors up then down (DSHOT) |
 
-NAV commands (`0x34`–`0x3B`) use **`payload_len = 0`** today. The mobile follow controller emits them on autonomy phase transitions; firmware logs them on serial for demo visibility. This SoftAP build uses `motor_stub.c` (no PWM) for bench demos.
+NAV commands (`0x34`–`0x3B`) and `SET_MOTOR_*` are **log-only** on this bench firmware. Only **`DEMO_TAKEOFF`** drives motors. Mobile Control tab **Takeoff** sends `TAKEOFF` → `0x3C`; **Land** sends `ESTOP`.
 
 ---
 
@@ -104,14 +105,14 @@ NAV commands (`0x34`–`0x3B`) use **`payload_len = 0`** today. The mobile follo
 | `main/bleprph.h` | Command enum, `drone_cmd_t` / `drone_ack_t` |
 | `main/gatt_svr.c` | GATT service, parse/write, `drone_handle_command`, telemetry notify |
 | `main/ble_stack.c` | NimBLE host, advertising as **DroneBLE** |
-| `main/motor_stub.c` | No-op motor layer for ESP32-C3 bench builds |
+| `main/demo_takeoff.c` | Onboard motor ramp task (triggered by `DEMO_TAKEOFF`) |
+| `../../motor_tests/main/motor.c` | DSHOT300 on GPIO 3–6 |
+| `main/motor_tick_task.c` | Background `motors_tick()` loop |
 
 ---
 
 ## 5. Demo checklist
 
 1. Flash **`wifi_gps_softap`**: `idf.py -p PORT flash monitor`
-2. USB serial at INFO: confirm `DRONE_CMD_NAV_*` lines when follow mode runs in the app
-3. Mobile: Connect tab → **DroneBLE** → Home → start follow mock
-
-Expected serial lines include `DRONE_CMD_NAV_ROTATE_CW`, `NAV_FORWARD`, `NAV_BACKWARD`, `NAV_HOLD`, `NAV_IDLE` interleaved with `SET_MOTOR` traffic.
+2. **Motor proof:** Connect BLE → Control tab → **Takeoff** → serial shows `DRONE_CMD_DEMO_TAKEOFF` + ramp logs; all 4 motors spin up/down
+3. **Autonomy proof:** Home → **START FOLLOW** → serial shows `DRONE_CMD_NAV_*` and `SET_MOTOR` (log-only) with no motor motion

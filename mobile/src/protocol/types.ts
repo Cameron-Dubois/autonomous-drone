@@ -21,6 +21,7 @@ export const DroneCmd = {
   NAV_HOLD:         0x39,
   NAV_IDLE:         0x3A,
   NAV_BACKWARD:     0x3B,
+  DEMO_TAKEOFF:     0x3C,
 } as const;
 
 /** Human-readable names for debug / serial correlation. */
@@ -46,6 +47,7 @@ export const DRONE_CMD_NAMES: Record<number, string> = {
   [DroneCmd.NAV_HOLD]:         "NAV_HOLD",
   [DroneCmd.NAV_IDLE]:         "NAV_IDLE",
   [DroneCmd.NAV_BACKWARD]:     "NAV_BACKWARD",
+  [DroneCmd.DEMO_TAKEOFF]:     "DEMO_TAKEOFF",
 };
 
 export function describeDroneCmd(cmdId: number): string {
@@ -100,8 +102,8 @@ const CMD_TYPE_TO_ID: Record<string, number> = {
   ASCEND:         DroneCmd.ASCEND,
   DESCEND:        DroneCmd.DESCEND,
   FOLLOW_TOGGLE:  DroneCmd.FOLLOW_TOGGLE,
-  TAKEOFF:        DroneCmd.ARM,
-  LAND:           DroneCmd.DISARM,
+  TAKEOFF:        DroneCmd.DEMO_TAKEOFF,
+  LAND:           DroneCmd.ESTOP,
   HOVER:          DroneCmd.ARM,
   RETURN_HOME:    DroneCmd.NOP,
 };

@@ -486,6 +486,7 @@ void app_main(void)
     start_https_server();
 
     motors_init();
+    motors_start_background_tick();
     wifi_gps_ble_stack_start();
 
     gps_uart_init();

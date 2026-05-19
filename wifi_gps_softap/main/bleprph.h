@@ -61,6 +61,9 @@ typedef enum {
     DRONE_CMD_NAV_IDLE         = 0x3A,
     DRONE_CMD_NAV_BACKWARD     = 0x3B,
 
+    /** Bench demo: onboard motor ramp up/down (only opcode that drives motors). */
+    DRONE_CMD_DEMO_TAKEOFF     = 0x3C,
+
     DRONE_CMD_MAX_VALUE
 } drone_cmd_id_t;
 

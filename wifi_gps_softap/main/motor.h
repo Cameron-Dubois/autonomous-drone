@@ -1,32 +1,21 @@
 #pragma once
-#include "esp_err.h"
 #include <stdbool.h>
+#include <stdint.h>
 
-typedef enum
-{
-    MOTOR_1 = 0,
-    MOTOR_2 = 1,
-    MOTOR_3 = 2,
-    MOTOR_4 = 3
+typedef enum {
+    MOTOR_1 = 0,   /* Back-Left   (GPIO 3) */
+    MOTOR_2 = 1,   /* Front-Left  (GPIO 4) */
+    MOTOR_3 = 2,   /* Back-Right  (GPIO 5) */
+    MOTOR_4 = 3    /* Front-Right (GPIO 6) */
 } motor_t;
 
-// Initialize motor system
 void motors_init(void);
-
-// Increase motor speed by amount
-void motor_increase_speed(motor_t motor, int amount);
-
-// Decrease motor speed by amount
-void motor_decrease_speed(motor_t motor, int amount);
-
-// Set motor duty directly
-void motor_set_speed(motor_t motor, int duty);
-
-// Turn motor on/off
-void motor_set_on_off(motor_t motor, bool on);
-
-// Set motor direction (true=forward, false=reverse)
-void motor_set_direction(motor_t motor, bool forward);
-
-// Stop all motors immediately
+void motor_set_throttle(motor_t motor, int throttle_pct);
 void motors_stop_all(void);
+void motors_tick(void);
+
+/** Start FreeRTOS task that calls motors_tick() continuously (required for DSHOT). */
+void motors_start_background_tick(void);
+
+void motor_set_direction(motor_t motor, bool reversed);
+int motor_get_gpio(int motor_idx);
