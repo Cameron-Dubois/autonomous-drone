@@ -98,6 +98,7 @@ export default function HomeScreen() {
         IDLE: { bg: "rgba(255,255,255,0.05)", border: "rgba(255,255,255,0.15)", fg: "rgba(255,255,255,0.6)" },
         ROTATE: { bg: "rgba(245,166,35,0.15)", border: "rgba(245,166,35,0.5)", fg: "#f5a623" },
         FORWARD: { bg: "rgba(0,242,255,0.15)", border: "rgba(0,242,255,0.5)", fg: "#00f2ff" },
+        RETREAT: { bg: "rgba(255,80,80,0.15)", border: "rgba(255,80,80,0.5)", fg: "#ff5050" },
         HOLD: { bg: "rgba(61,245,122,0.15)", border: "rgba(61,245,122,0.5)", fg: "#3df57a" },
     };
     const chipPalette = phaseChipColor[follow.state];

@@ -42,6 +42,15 @@ const FORWARD_ALIGNED = (): NavigationSnapshot =>
     generatedAtMs: MOCK_NOW,
   });
 
+const TOO_CLOSE = (): NavigationSnapshot =>
+  snap({
+    intent: "PROCEED_TOWARD_PHONE",
+    distancePhoneToDrone_m: 1.0,
+    bearingDroneToPhone_deg: 0,
+    yawErrorDeg: 0,
+    generatedAtMs: MOCK_NOW,
+  });
+
 const AWAITING = (): NavigationSnapshot =>
   snap({ intent: "AWAITING_DRONE_FIX", generatedAtMs: MOCK_NOW });
 
@@ -83,6 +92,14 @@ function decodeMotorPacket(b: Uint8Array): { idx: number; throttle: number } {
   const idx = cmdId - DroneCmd.SET_MOTOR_1;
   const throttle = b[3];
   return { idx, throttle };
+}
+
+function isMotorCmd(cmdId: number): boolean {
+  return cmdId >= DroneCmd.SET_MOTOR_1 && cmdId <= DroneCmd.SET_MOTOR_4;
+}
+
+function navCmdIds(bytes: Uint8Array[]): number[] {
+  return bytes.filter((b) => !isMotorCmd(b[1])).map((b) => b[1]);
 }
 
 beforeEach(() => {
@@ -132,7 +149,7 @@ describe("useFollowMockController", () => {
     // First tick from IDLE with +yaw 45 -> ROTATE CW: M1+M4 = 40, M2+M3 = 0.
     // Since prev throttles are all 0, diff dispatch should fire for M1 and M4 (changed),
     // and skip M2/M3 (unchanged).
-    const decoded = comms.sent.map(decodeMotorPacket);
+    const decoded = comms.sent.filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
     const byIdx = new Map<number, number>();
     for (const d of decoded) byIdx.set(d.idx, d.throttle);
     expect(byIdx.get(0)).toBe(40); //M1
@@ -143,6 +160,62 @@ describe("useFollowMockController", () => {
 
     act(() => {
       tr!.unmount();
+    });
+  });
+
+  it("IDLE -> ROTATE transition emits NAV_ROTATE_CW on first tick", () => {
+    const captured: Captured = { latest: null };
+    const Probe = makeProbe(captured);
+    const comms = mockComms();
+
+    let tr: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tr = TestRenderer.create(<Probe snapshot={ROTATE_RIGHT()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      captured.latest!.start();
+    });
+    act(() => {
+      jest.advanceTimersByTime(110);
+    });
+
+    expect(navCmdIds(comms.sent)).toContain(DroneCmd.NAV_ROTATE_CW);
+
+    act(() => {
+      tr!.unmount();
+    });
+  });
+
+  it("ROTATE -> FORWARD transition emits NAV_FORWARD", () => {
+    const captured: Captured = { latest: null };
+    const Probe = makeProbe(captured);
+    const comms = mockComms();
+
+    let tr: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tr = TestRenderer.create(<Probe snapshot={ROTATE_RIGHT()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      captured.latest!.start();
+    });
+    act(() => {
+      jest.advanceTimersByTime(110);
+    });
+    const beforeUpdate = comms.sent.length;
+
+    act(() => {
+      tr.update(<Probe snapshot={FORWARD_ALIGNED()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      jest.advanceTimersByTime(110);
+    });
+
+    const navAfter = navCmdIds(comms.sent.slice(beforeUpdate));
+    expect(navAfter).toContain(DroneCmd.NAV_FORWARD);
+    expect(captured.latest!.state).toBe("FORWARD");
+
+    act(() => {
+      tr.unmount();
     });
   });
 
@@ -163,11 +236,14 @@ describe("useFollowMockController", () => {
     });
     const sentAfterFirstTick = comms.sent.length;
 
-    // 3 more ticks with the same snapshot -> no new writes.
+    // 3 more ticks with the same snapshot -> no new motor writes (NAV already sent once).
     act(() => {
       jest.advanceTimersByTime(300);
     });
-    expect(comms.sent.length).toBe(sentAfterFirstTick);
+    const motorWritesAfter = comms.sent
+      .slice(sentAfterFirstTick)
+      .filter((b) => isMotorCmd(b[1])).length;
+    expect(motorWritesAfter).toBe(0);
 
     act(() => {
       tr!.unmount();
@@ -201,7 +277,7 @@ describe("useFollowMockController", () => {
     });
 
     // Diff vs prev [40,0,0,40]: M1 unchanged (40), M2 unchanged (0), M3 changed 0->40, M4 changed 40->0.
-    const newWrites = comms.sent.slice(beforeUpdate).map(decodeMotorPacket);
+    const newWrites = comms.sent.slice(beforeUpdate).filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
     const ids = newWrites.map((w) => w.idx).sort();
     expect(ids).toEqual([2, 3]); //only M3 and M4 should re-send
     const byIdx = new Map(newWrites.map((w) => [w.idx, w.throttle] as const));
@@ -211,6 +287,66 @@ describe("useFollowMockController", () => {
 
     act(() => {
       tr.unmount();
+    });
+  });
+
+  it("FORWARD -> RETREAT transition emits NAV_BACKWARD when too close", () => {
+    const captured: Captured = { latest: null };
+    const Probe = makeProbe(captured);
+    const comms = mockComms();
+
+    let tr: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tr = TestRenderer.create(<Probe snapshot={FORWARD_ALIGNED()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      captured.latest!.start();
+    });
+    act(() => {
+      jest.advanceTimersByTime(110); // FORWARD
+    });
+
+    act(() => {
+      tr.update(<Probe snapshot={TOO_CLOSE()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      jest.advanceTimersByTime(110);
+    });
+
+    expect(captured.latest!.state).toBe("RETREAT");
+    expect(navCmdIds(comms.sent)).toContain(DroneCmd.NAV_BACKWARD);
+
+    act(() => {
+      tr.unmount();
+    });
+  });
+
+  it("stop() emits NAV_IDLE when stopping from an active phase", () => {
+    const captured: Captured = { latest: null };
+    const Probe = makeProbe(captured);
+    const comms = mockComms();
+
+    let tr: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tr = TestRenderer.create(<Probe snapshot={ROTATE_RIGHT()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      captured.latest!.start();
+    });
+    act(() => {
+      jest.advanceTimersByTime(110);
+    });
+    const beforeStop = comms.sent.length;
+
+    act(() => {
+      captured.latest!.stop();
+    });
+
+    const stopNav = navCmdIds(comms.sent.slice(beforeStop));
+    expect(stopNav).toContain(DroneCmd.NAV_IDLE);
+
+    act(() => {
+      tr!.unmount();
     });
   });
 
@@ -235,7 +371,7 @@ describe("useFollowMockController", () => {
       captured.latest!.stop();
     });
 
-    const stopWrites = comms.sent.slice(beforeStop).map(decodeMotorPacket);
+    const stopWrites = comms.sent.slice(beforeStop).filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
     expect(stopWrites.length).toBe(4); //one zero per motor, forced
     for (const w of stopWrites) {
       expect(w.throttle).toBe(0);
@@ -275,7 +411,7 @@ describe("useFollowMockController", () => {
       jest.advanceTimersByTime(110);
     });
 
-    const newWrites = comms.sent.slice(beforeUnhealthy).map(decodeMotorPacket);
+    const newWrites = comms.sent.slice(beforeUnhealthy).filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
     // Only the previously non-zero motors (M1, M4) need to be zeroed.
     const writesByIdx = new Map<number, number>();
     for (const w of newWrites) writesByIdx.set(w.idx, w.throttle);
@@ -344,7 +480,7 @@ describe("useFollowMockController", () => {
       tr!.unmount();
     });
 
-    const unmountWrites = comms.sent.slice(beforeUnmount).map(decodeMotorPacket);
+    const unmountWrites = comms.sent.slice(beforeUnmount).filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
     expect(unmountWrites.length).toBe(4); //forced zero per motor
     for (const w of unmountWrites) expect(w.throttle).toBe(0);
 
@@ -387,7 +523,7 @@ describe("useFollowMockController", () => {
     });
   });
 
-  it("never sends ARM, DISARM, ESTOP, or HEARTBEAT", () => {
+  it("never sends ARM, DISARM, ESTOP, or HEARTBEAT (only SET_MOTOR and NAV intent)", () => {
     const captured: Captured = { latest: null };
     const Probe = makeProbe(captured);
     const comms = mockComms();
@@ -408,12 +544,18 @@ describe("useFollowMockController", () => {
 
     const cmds = comms.sent.map((b) => b[1]);
     for (const c of cmds) {
-      expect([
-        DroneCmd.SET_MOTOR_1,
-        DroneCmd.SET_MOTOR_2,
-        DroneCmd.SET_MOTOR_3,
-        DroneCmd.SET_MOTOR_4,
-      ]).toContain(c);
+      const allowed =
+        c === DroneCmd.SET_MOTOR_1 ||
+        c === DroneCmd.SET_MOTOR_2 ||
+        c === DroneCmd.SET_MOTOR_3 ||
+        c === DroneCmd.SET_MOTOR_4 ||
+        c === DroneCmd.NAV_ROTATE_CW ||
+        c === DroneCmd.NAV_ROTATE_CCW ||
+        c === DroneCmd.NAV_FORWARD ||
+        c === DroneCmd.NAV_HOLD ||
+        c === DroneCmd.NAV_IDLE ||
+        c === DroneCmd.NAV_BACKWARD;
+      expect(allowed).toBe(true);
     }
 
     act(() => {

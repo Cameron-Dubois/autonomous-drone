@@ -46,6 +46,13 @@ const HEALTHY_FAR_LEFT: NavigationSnapshot = snap({
 
 const HEALTHY_NEAR: NavigationSnapshot = snap({
   intent: "ARRIVED_OR_WITHIN_RADIUS",
+  distancePhoneToDrone_m: 2.0,
+  bearingDroneToPhone_deg: 0,
+  yawErrorDeg: 0,
+});
+
+const HEALTHY_TOO_CLOSE: NavigationSnapshot = snap({
+  intent: "PROCEED_TOWARD_PHONE",
   distancePhoneToDrone_m: 1.0,
   bearingDroneToPhone_deg: 0,
   yawErrorDeg: 0,
@@ -53,7 +60,7 @@ const HEALTHY_NEAR: NavigationSnapshot = snap({
 
 describe("evaluateFollowMock", () => {
   it("running=false returns IDLE and zero throttles regardless of state", () => {
-    for (const state of ["IDLE", "ROTATE", "FORWARD", "HOLD"] as FollowState[]) {
+    for (const state of ["IDLE", "ROTATE", "FORWARD", "HOLD", "RETREAT"] as FollowState[]) {
       const out = evaluateFollowMock({ state, snapshot: HEALTHY_FAR_RIGHT, running: false }, CFG);
       expect(out.nextState).toBe("IDLE");
       expect(out.motorThrottles).toEqual([0, 0, 0, 0]);
@@ -210,13 +217,51 @@ describe("evaluateFollowMock", () => {
     expect(out.nextState).toBe("ROTATE");
   });
 
-  it("distance <= arrivalRadius -> HOLD with zero throttles (from FORWARD)", () => {
+  it("distance <= arrivalRadius (above min standoff) -> HOLD with zero throttles (from FORWARD)", () => {
     const out = evaluateFollowMock(
       { state: "FORWARD", snapshot: HEALTHY_NEAR, running: true },
       CFG
     );
     expect(out.nextState).toBe("HOLD");
     expect(out.motorThrottles).toEqual([0, 0, 0, 0]);
+  });
+
+  it("distance below minStandoff -> RETREAT with backward mix (from FORWARD)", () => {
+    const out = evaluateFollowMock(
+      { state: "FORWARD", snapshot: HEALTHY_TOO_CLOSE, running: true },
+      CFG
+    );
+    expect(out.nextState).toBe("RETREAT");
+    const [m1, m2, m3, m4] = out.motorThrottles;
+    expect(m2).toBe(CFG.backwardBias);
+    expect(m4).toBe(CFG.backwardBias);
+    expect(m1).toBe(0);
+    expect(m3).toBe(0);
+  });
+
+  it("RETREAT stays RETREAT until distance clears minStandoff + hysteresis", () => {
+    const out = evaluateFollowMock(
+      { state: "RETREAT", snapshot: HEALTHY_TOO_CLOSE, running: true },
+      CFG
+    );
+    expect(out.nextState).toBe("RETREAT");
+  });
+
+  it("RETREAT -> FORWARD when distance exceeds standoff band and yaw is good", () => {
+    const beyondStandoff = CFG.minStandoffM + CFG.standoffHysteresisM + 0.1;
+    const out = evaluateFollowMock(
+      {
+        state: "RETREAT",
+        snapshot: snap({
+          intent: "PROCEED_TOWARD_PHONE",
+          distancePhoneToDrone_m: beyondStandoff,
+          yawErrorDeg: 0,
+        }),
+        running: true,
+      },
+      CFG
+    );
+    expect(out.nextState).toBe("FORWARD");
   });
 
   it("HOLD stays HOLD while distance inside hysteresis band", () => {

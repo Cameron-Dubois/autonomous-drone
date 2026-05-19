@@ -3,11 +3,11 @@ idf_component_register(
         "softap_gps_main.c"
         "ble_stack.c"
         "ble_misc.c"
+        "gatt_svr.c"
         "motor_stub.c"
         "bmp280_baro.c"
         "../../gps_bringup/main/gps_nmea.c"
         "../../gps_bringup/main/compass_mag.c"
-        "../../drone_ble/main/gatt_svr.c"
     PRIV_REQUIRES
         esp_wifi
         nvs_flash
@@ -24,7 +24,6 @@ idf_component_register(
     INCLUDE_DIRS
         "."
         "../../gps_bringup/main"
-        "../../drone_ble/main"
     EMBED_TXTFILES
         "certs/servercert.pem"
         "certs/prvkey.pem"
