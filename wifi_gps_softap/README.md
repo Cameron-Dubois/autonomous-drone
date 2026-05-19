@@ -11,13 +11,32 @@ Pin and bus definitions live in [`gps_bringup/main/board_config.h`](../gps_bring
 
 Flash is assumed **2 MB**; the custom [`partitions.csv`](partitions.csv) keeps the factory app below the flash size limit with NimBLE enabled.
 
+## Wi‑Fi password provisioning
+
+Out of the box, the SoftAP uses the **factory password** from menuconfig (`Example Configuration` → **WiFi Password**). After the first successful join from the mobile app:
+
+1. The app calls `GET https://192.168.4.1/wifi/status` (`provisioned: false`).
+2. The app generates a random 16-character password and `POST`s `/wifi/provision` with `{ "password", "factoryPassword" }`.
+3. The drone saves the password in **NVS**, restarts the AP, and all future boots use the new password.
+4. The app stores the password in the phone secure store and shows it once (save it — needed if you reinstall the app).
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/wifi/status` | GET | `{ "provisioned": bool, "ssid": "..." }` |
+| `/wifi/provision` | POST | First-time only; body `{ "password", "factoryPassword" }` |
+| `/wifi/factory-reset` | POST | When provisioned; body `{ "currentPassword" }` restores factory password |
+
+Factory reset is also available in the app **Connect** tab when Wi‑Fi is connected. Developer fallback: `idf.py erase-flash` clears NVS.
+
+The mobile app factory default must match menuconfig (or set `EXPO_PUBLIC_DRONE_WIFI_DEFAULT_PASSWORD` at build time). See [`mobile/src/config/drone-defaults.ts`](../mobile/src/config/drone-defaults.ts).
+
 ## Build
 
 From this directory (with ESP-IDF environment loaded):
 
 ```bash
 idf.py set-target esp32c3
-idf.py menuconfig   # Example Configuration → WiFi SSID / password
+idf.py menuconfig   # Example Configuration → WiFi SSID / factory password
 idf.py -p PORT flash monitor
 ```
 
