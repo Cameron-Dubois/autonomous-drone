@@ -47,6 +47,19 @@ export async function provisionWifi(
   return readJson<{ ok: boolean; ssid: string }>(res);
 }
 
+/** Replace WPA2 passphrase (drone already provisioned). Caller must reconnect Wi‑Fi to the AP. */
+export async function rotateWifiPassword(
+  newPassword: string,
+  currentPassword: string
+): Promise<{ ok: boolean; ssid: string }> {
+  const res = await fetch(`${DRONE_HTTPS_BASE}/wifi/rotate-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: newPassword, currentPassword }),
+  });
+  return readJson<{ ok: boolean; ssid: string }>(res);
+}
+
 export async function factoryResetWifi(
   currentPassword: string
 ): Promise<{ ok: boolean }> {

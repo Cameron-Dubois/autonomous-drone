@@ -156,6 +156,63 @@ static esp_err_t wifi_provision_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+/**
+ * Change SoftAP passphrase while already provisioned (verify current, then persist + restart AP).
+ */
+static esp_err_t wifi_rotate_password_handler(httpd_req_t *req)
+{
+    if (req->method != HTTP_POST) {
+        return send_json(req, "405 Method Not Allowed", "{\"ok\":false,\"error\":\"method\"}");
+    }
+
+    if (!wifi_credentials_is_provisioned()) {
+        return send_json(req, "409 Conflict", "{\"ok\":false,\"error\":\"not_provisioned\"}");
+    }
+
+    char body[REQ_BODY_MAX];
+    if (read_request_body(req, body, sizeof(body), NULL) != ESP_OK) {
+        return send_json(req, "400 Bad Request", "{\"ok\":false,\"error\":\"body\"}");
+    }
+
+    char new_pwd[WIFI_CRED_PWD_MAX_LEN + 1];
+    char current_in[WIFI_CRED_PWD_MAX_LEN + 1];
+    if (!json_get_string(body, "password", new_pwd, sizeof(new_pwd)) ||
+        !json_get_string(body, "currentPassword", current_in, sizeof(current_in))) {
+        return send_json(req, "400 Bad Request", "{\"ok\":false,\"error\":\"json\"}");
+    }
+
+    if (!wifi_credentials_is_valid_password(new_pwd)) {
+        return send_json(req, "400 Bad Request", "{\"ok\":false,\"error\":\"password_invalid\"}");
+    }
+
+    char active[WIFI_CRED_PWD_MAX_LEN + 1];
+    if (wifi_credentials_get_password(active, sizeof(active)) != ESP_OK) {
+        return send_json(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"internal\"}");
+    }
+    if (strcmp(active, current_in) != 0) {
+        return send_json(req, "403 Forbidden", "{\"ok\":false,\"error\":\"current_password\"}");
+    }
+
+    if (wifi_credentials_set_password(new_pwd) != ESP_OK) {
+        return send_json(req, "500 Internal Server Error", "{\"ok\":false,\"error\":\"nvs\"}");
+    }
+
+    char resp[96];
+    snprintf(resp, sizeof(resp), "{\"ok\":true,\"ssid\":\"%s\"}", wifi_credentials_get_ssid());
+    esp_err_t send_err = send_json(req, "200 OK", resp);
+    if (send_err != ESP_OK) {
+        return send_err;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(150));
+    esp_err_t ap_err = wifi_softap_apply_password(new_pwd);
+    if (ap_err != ESP_OK) {
+        ESP_LOGE(TAG, "rotate apply password failed: %s", esp_err_to_name(ap_err));
+    }
+    ESP_LOGI(TAG, "Wi-Fi password rotated");
+    return ESP_OK;
+}
+
 static esp_err_t wifi_factory_reset_handler(httpd_req_t *req)
 {
     if (req->method != HTTP_POST) {
@@ -220,6 +277,12 @@ esp_err_t wifi_provision_http_register(httpd_handle_t server)
         .handler = wifi_provision_handler,
         .user_ctx = NULL,
     };
+    httpd_uri_t rotate = {
+        .uri = "/wifi/rotate-password",
+        .method = HTTP_POST,
+        .handler = wifi_rotate_password_handler,
+        .user_ctx = NULL,
+    };
     httpd_uri_t factory_reset = {
         .uri = "/wifi/factory-reset",
         .method = HTTP_POST,
@@ -232,6 +295,10 @@ esp_err_t wifi_provision_http_register(httpd_handle_t server)
         return err;
     }
     err = httpd_register_uri_handler(server, &provision);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = httpd_register_uri_handler(server, &rotate);
     if (err != ESP_OK) {
         return err;
     }
