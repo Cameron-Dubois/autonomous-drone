@@ -2,8 +2,13 @@ import * as SecureStore from "expo-secure-store";
 
 const KEY_PREFIX = "wifi_pwd:";
 
+/** Normalize SSID for SecureStore keys (Android may add/remove quotes). */
+export function normalizeWifiSsid(ssid: string): string {
+  return ssid.replace(/^"|"$/g, "").trim();
+}
+
 function storageKey(ssid: string): string {
-  return `${KEY_PREFIX}${ssid.trim()}`;
+  return `${KEY_PREFIX}${normalizeWifiSsid(ssid)}`;
 }
 
 export async function getStoredWifiPassword(ssid: string): Promise<string | null> {

@@ -26,10 +26,16 @@ function withDroneWifiTlsAndroid(config) {
       fs.mkdirSync(xmlDir, { recursive: true });
       fs.mkdirSync(rawDir, { recursive: true });
 
-      const certSrc = path.join(projectRoot, "certs/drone_ap_server_cert.pem");
+      const certCandidates = [
+        path.join(projectRoot, "certs/drone_ap_server_cert.pem"),
+        path.join(projectRoot, "../wifi_gps_softap/main/certs/servercert.pem"),
+      ];
+      const certSrc = certCandidates.find((p) => fs.existsSync(p));
       const certDst = path.join(rawDir, "drone_ap_server_cert.pem");
-      if (!fs.existsSync(certSrc)) {
-        throw new Error(`Missing TLS cert for Android trust: ${certSrc}`);
+      if (!certSrc) {
+        throw new Error(
+          `Missing TLS cert for Android trust. Copy firmware cert to mobile/certs/drone_ap_server_cert.pem or build wifi_gps_softap (tried: ${certCandidates.join(", ")})`
+        );
       }
       const pem = fs.readFileSync(certSrc, "utf8");
       fs.writeFileSync(certDst, pem.replace(/\r\n/g, "\n").trim() + "\n");

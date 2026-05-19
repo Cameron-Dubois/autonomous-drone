@@ -27,11 +27,12 @@ import {
 } from "../../../src/comms/WiFi/wifi-password-store";
 import {
   delay,
+  ensureDroneHttpsReachable,
   factoryResetWifi,
   fetchWifiStatus,
+  formatWifiProvisionError,
   generateDroneWifiPassword,
-  provisionWifi,
-  rotateWifiPassword,
+  provisionOrRotateWifi,
   type WifiProvisionStatus,
 } from "../../../src/comms/WiFi/wifi-provision";
 import { isHybridComms } from "../../../src/comms/hybrid-comms";
@@ -89,6 +90,13 @@ export default function Connect() {
   const [droneWifiProvisionStatus, setDroneWifiProvisionStatus] = useState<WifiProvisionStatus | null>(
     null
   );
+  const [wifiAdminModal, setWifiAdminModal] = useState<
+    | { mode: "factory-reset"; ssid: string }
+    | { mode: "rotate-random"; ssid: string; newPassword: string }
+    | { mode: "save-password"; ssid: string }
+    | null
+  >(null);
+  const [wifiAdminPassword, setWifiAdminPassword] = useState("");
 
   const refreshWifiState = useCallback(async () => {
     try {
@@ -202,48 +210,26 @@ export default function Connect() {
     }
   }, []);
 
+  /** After Wi‑Fi association: store passphrase for admin HTTPS, start comms. Does not change drone password — use New random. */
   const completeWifiJoin = useCallback(
     async (network: WifiNetworkSummary, passwordUsed: string) => {
       setWifiProvisioning(true);
       try {
-        let status = await fetchWifiStatus();
-
-        if (!status.provisioned) {
-          if (!passwordUsed) {
-            throw new Error("Factory Wi‑Fi password is required for first-time setup.");
-          }
-          const newPassword = generateDroneWifiPassword();
-          await provisionWifi(newPassword, passwordUsed);
-          await setStoredWifiPassword(status.ssid, newPassword);
-          setProvisionedPwdModal({ ssid: status.ssid, password: newPassword });
-
-          await delay(500);
-          const online = await waitForDroneOnline();
-          if (!online) {
-            throw new Error(
-              "Drone did not come back online after password change. Reconnect manually with the new password shown."
-            );
-          }
-
-          const client = getWifiClient();
-          await client.connect(network.id, newPassword);
-          if (typeof client.refreshConnectionStatus === "function") {
-            await client.refreshConnectionStatus();
-            setWifiRefresh((n) => n + 1);
-          }
-
-          status = await fetchWifiStatus();
-          if (!status.provisioned) {
-            throw new Error("Provisioning did not complete on the drone.");
-          }
-        } else if (passwordUsed) {
+        if (passwordUsed) {
           const stored = await getStoredWifiPassword(network.ssid);
           if (!stored) {
             await setStoredWifiPassword(network.ssid, passwordUsed);
           }
         }
-
-        void comms.connect();
+        if (await probeDroneReachable(4000)) {
+          try {
+            const status = await fetchWifiStatus();
+            setDroneWifiProvisionStatus(status);
+          } catch {
+            /* HTTPS status optional on join */
+          }
+          void comms.connect();
+        }
       } finally {
         setWifiProvisioning(false);
       }
@@ -407,6 +393,85 @@ export default function Connect() {
     };
   }, [isWifiLinked, wifiRefresh]);
 
+  const runFactoryResetWithPassword = useCallback(
+    async (ssid: string, currentPassword: string) => {
+      setWifiError(null);
+      setWifiProvisioning(true);
+      try {
+        await ensureDroneHttpsReachable();
+        await factoryResetWifi(currentPassword);
+        await clearStoredWifiPassword(ssid);
+        await comms.disconnect();
+        const client = getWifiClient();
+        await client.disconnect();
+        await client.refreshConnectionStatus();
+        setWifiRefresh((n) => n + 1);
+        setDroneWifiProvisionStatus({ provisioned: false, ssid });
+        Alert.alert(
+          "Wi‑Fi reset",
+          `The drone hotspot again uses the factory password (${DRONE_WIFI_FACTORY_PASSWORD}).\n\nOn your phone: Settings → Wi‑Fi → forget this network, then join again with that password. You can then tap New random Wi‑Fi password.`
+        );
+      } catch (e) {
+        const full = formatWifiProvisionError(e, DRONE_WIFI_FACTORY_PASSWORD);
+        setWifiError(full);
+        Alert.alert("Reset failed", full);
+      } finally {
+        setWifiProvisioning(false);
+      }
+    },
+    [comms]
+  );
+
+  const runRotateRandomWithPassword = useCallback(
+    async (ssid: string, newPassword: string, currentPassword: string | null) => {
+      setWifiError(null);
+      setWifiProvisioning(true);
+      try {
+        const res = await provisionOrRotateWifi(
+          newPassword,
+          currentPassword,
+          DRONE_WIFI_FACTORY_PASSWORD
+        );
+        await setStoredWifiPassword(ssid, newPassword);
+        const reconnectSsid = res.ssid || ssid;
+        setDroneWifiProvisionStatus({ provisioned: true, ssid: reconnectSsid });
+        setProvisionedPwdModal({ ssid: reconnectSsid, password: newPassword });
+
+        await delay(900);
+
+        if (Platform.OS === "android") {
+          try {
+            const client = getWifiClient();
+            const list = await client.scan({ timeoutMs: SCAN_TIMEOUT_MS });
+            const match =
+              list.find((n) => n.ssid === reconnectSsid) ??
+              list.find((n) => n.ssid === DRONE_WIFI_FACTORY_SSID);
+            if (match) {
+              await client.connect(match.id, newPassword);
+              await client.refreshConnectionStatus();
+              setWifiRefresh((x) => x + 1);
+              if (await waitForDroneOnline()) void comms.connect();
+            }
+          } catch {
+            /* reconnect via Settings */
+          }
+        } else {
+          Alert.alert(
+            "Reconnect manually",
+            "Open Settings → Wi‑Fi and join the drone with the new password from the popup."
+          );
+        }
+      } catch (e) {
+        const full = formatWifiProvisionError(e, DRONE_WIFI_FACTORY_PASSWORD);
+        setWifiError(full);
+        Alert.alert("Wi‑Fi update failed", full);
+      } finally {
+        setWifiProvisioning(false);
+      }
+    },
+    [comms]
+  );
+
   const handleFactoryResetWifi = useCallback(() => {
     const ssid = connectedWifiId;
     if (!ssid || !isWifiLinked) {
@@ -423,43 +488,20 @@ export default function Connect() {
           style: "destructive",
           onPress: () => {
             void (async () => {
-              setWifiError(null);
-              setWifiProvisioning(true);
-              try {
-                const stored = await getStoredWifiPassword(ssid);
-                if (!stored) {
-                  Alert.alert(
-                    "Password required",
-                    "No stored Wi‑Fi password for this network. Connect once with your drone password, then try again."
-                  );
-                  return;
-                }
-                await factoryResetWifi(stored);
-                await clearStoredWifiPassword(ssid);
-                await comms.disconnect();
-                const client = getWifiClient();
-                await client.disconnect();
-                await client.refreshConnectionStatus();
-                setWifiRefresh((n) => n + 1);
-                Alert.alert(
-                  "Wi‑Fi reset",
-                  `Factory password restored. Reconnect using: ${DRONE_WIFI_FACTORY_PASSWORD}`
-                );
-              } catch (e) {
-                const msg = e instanceof Error ? e.message : "Factory reset failed";
-                setWifiError(msg);
-                Alert.alert("Reset failed", msg);
-              } finally {
-                setWifiProvisioning(false);
+              const stored = await getStoredWifiPassword(ssid);
+              if (!stored) {
+                setWifiAdminPassword("");
+                setWifiAdminModal({ mode: "factory-reset", ssid });
+                return;
               }
+              await runFactoryResetWithPassword(ssid, stored);
             })();
           },
         },
       ]
     );
-  }, [comms, connectedWifiId, isWifiLinked]);
+  }, [connectedWifiId, isWifiLinked, runFactoryResetWithPassword]);
 
-  /** Assign a random SoftAP passphrase: provisions over HTTPS when needed (works after joining via Settings), then rotates once NVS provisioned */
   const handleRotateDroneWifiRandom = useCallback(() => {
     const ssidKey = connectedWifiId;
     if (!ssidKey || !isWifiLinked) {
@@ -468,115 +510,56 @@ export default function Connect() {
 
     Alert.alert(
       "New random hotspot password?",
-      "The drone restarts Wi‑Fi. Save the password from the next screen. Android: this app tries to reconnect when possible.",
+      "The drone restarts Wi‑Fi. Save the password from the next screen.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Continue",
           onPress: () => {
             void (async () => {
-              setWifiError(null);
-              setWifiProvisioning(true);
-              try {
-                let st: WifiProvisionStatus | null = null;
-                try {
-                  st = await fetchWifiStatus();
-                  setDroneWifiProvisionStatus(st);
-                } catch {
-                  /* status fetch failed — infer from HTTPS POST outcomes below */
-                }
-
-                const newPassword = generateDroneWifiPassword();
-                const stored = await getStoredWifiPassword(ssidKey);
-                const factoryFallback = DRONE_WIFI_FACTORY_PASSWORD;
-                const factoryOrStoredForFirstProvision = stored ?? factoryFallback;
-
-                let res: { ok: boolean; ssid: string };
-
-                if (st?.provisioned === true) {
-                  if (!stored) {
-                    Alert.alert(
-                      "Current hotspot passphrase needed",
-                      "Use Connect on your drone SSID below and enter your current passphrase so we save it securely. Android may still associate via system Wi‑Fi; this only stores what you typed for HTTPS rotation."
-                    );
-                    return;
-                  }
-                  res = await rotateWifiPassword(newPassword, stored);
-                } else {
-                  try {
-                    res = await provisionWifi(newPassword, factoryOrStoredForFirstProvision);
-                  } catch (e) {
-                    const alreadyProvisioned =
-                      e instanceof Error &&
-                      (/already_provisioned/i.test(e.message) ||
-                        /\b409\b/i.test(e.message) ||
-                        /WiFi API 409/.test(e.message));
-                    if (alreadyProvisioned && stored) {
-                      res = await rotateWifiPassword(newPassword, stored);
-                    } else if (alreadyProvisioned && !stored) {
-                      Alert.alert(
-                        "Hotspot already provisioned",
-                        "HTTPS says the drone is no longer on a factory passphrase. Tap Connect below on your drone network, enter its current passphrase once so we save it, then retry."
-                      );
-                      return;
-                    } else {
-                      throw e;
-                    }
-                  }
-                }
-
-                await setStoredWifiPassword(ssidKey, newPassword);
-                const reconnectSsid = res.ssid || ssidKey;
-                setDroneWifiProvisionStatus({ provisioned: true, ssid: reconnectSsid });
-                setProvisionedPwdModal({ ssid: reconnectSsid, password: newPassword });
-
-                await delay(900);
-
-                if (Platform.OS === "android") {
-                  try {
-                    const client = getWifiClient();
-                    const list = await client.scan({ timeoutMs: SCAN_TIMEOUT_MS });
-                    const match =
-                      list.find((n) => n.ssid === reconnectSsid) ??
-                      list.find((n) => n.ssid === DRONE_WIFI_FACTORY_SSID);
-                    if (match) {
-                      await client.connect(match.id, newPassword);
-                      await client.refreshConnectionStatus();
-                      setWifiRefresh((x) => x + 1);
-                      const online = await waitForDroneOnline();
-                      if (online) void comms.connect();
-                    }
-                  } catch {
-                    // User may reconnect from system Wi‑Fi
-                  }
-                } else {
-                  Alert.alert(
-                    "Reconnect manually",
-                    "Open Settings → Wi‑Fi and join the drone with the new password from the popup."
-                  );
-                }
-              } catch (e) {
-                const hint =
-                  e instanceof Error &&
-                  (/404|ENOTFOUND|fetch|Network/i.test(e.message) || e.message.includes("WiFi API"));
-                const raw = e instanceof Error ? e.message : "Wi‑Fi update failed";
-                const full =
-                  hint ?
-                    `${raw}\n\nCheck TLS to 192.168.4.1 and drone firmware provisioning / rotate-password support.`
-                  : raw.includes("factory_password") ?
-                    `${raw}\n\nApp default factory passphrase is "${DRONE_WIFI_FACTORY_PASSWORD}". Set EXPO_PUBLIC_DRONE_WIFI_DEFAULT_PASSWORD or firmware menuconfig to match.`
-                  : raw;
-                setWifiError(full);
-                Alert.alert("Wi‑Fi update failed", full);
-              } finally {
-                setWifiProvisioning(false);
+              const newPassword = await generateDroneWifiPassword();
+              const stored = await getStoredWifiPassword(ssidKey);
+              if (!stored) {
+                setWifiAdminPassword("");
+                setWifiAdminModal({ mode: "rotate-random", ssid: ssidKey, newPassword });
+                return;
               }
+              await runRotateRandomWithPassword(ssidKey, newPassword, stored);
             })();
           },
         },
       ]
     );
-  }, [comms, connectedWifiId, isWifiLinked]);
+  }, [connectedWifiId, isWifiLinked, runRotateRandomWithPassword]);
+
+  const submitWifiAdminModal = useCallback(() => {
+    const modal = wifiAdminModal;
+    const pwd = wifiAdminPassword.trim();
+    if (!modal || !pwd) {
+      return;
+    }
+    setWifiAdminModal(null);
+    setWifiAdminPassword("");
+    if (modal.mode === "factory-reset") {
+      void runFactoryResetWithPassword(modal.ssid, pwd);
+    } else if (modal.mode === "rotate-random") {
+      void runRotateRandomWithPassword(modal.ssid, modal.newPassword, pwd);
+    } else {
+      void (async () => {
+        await setStoredWifiPassword(modal.ssid, pwd);
+        Alert.alert("Saved", "Hotspot password stored for rotate and factory reset over HTTPS.");
+      })();
+    }
+  }, [wifiAdminModal, wifiAdminPassword, runFactoryResetWithPassword, runRotateRandomWithPassword]);
+
+  const handleSaveCurrentWifiPassword = useCallback(() => {
+    const ssid = connectedWifiId;
+    if (!ssid || !isWifiLinked) {
+      return;
+    }
+    setWifiAdminPassword("");
+    setWifiAdminModal({ mode: "save-password", ssid });
+  }, [connectedWifiId, isWifiLinked]);
 
   const contentTop = insets.top + spacing.lg;
   const contentBottom = insets.bottom + (tabBarHeight ?? 56) + spacing.xl;
@@ -622,6 +605,58 @@ export default function Connect() {
                 }}
               >
                 <Text style={styles.btnLabel}>Connect</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+      <Modal
+        visible={wifiAdminModal != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setWifiAdminModal(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              {wifiAdminModal?.mode === "factory-reset"
+                ? "Current password for factory reset"
+                : wifiAdminModal?.mode === "rotate-random"
+                  ? "Current password for new random password"
+                  : "Save hotspot password"}
+            </Text>
+            <Text style={styles.modalSubtitle} numberOfLines={2}>
+              {wifiAdminModal?.ssid ?? ""}
+            </Text>
+            <Text style={styles.modalHint}>
+              {wifiAdminModal?.mode === "save-password"
+                ? "Use the passphrase that works in Settings → Wi‑Fi (not the new random one until after rotation)."
+                : "Required for HTTPS to the drone after first-time provisioning. Joined via Settings? Enter the password you use there."}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={wifiAdminPassword}
+              onChangeText={setWifiAdminPassword}
+              placeholder="Current hotspot password"
+              placeholderTextColor="rgba(255,255,255,0.3)"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.btn, styles.modalBtn]} onPress={() => setWifiAdminModal(null)}>
+                <Text style={styles.btnLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.btn, styles.modalBtn, styles.btnPrimary]}
+                onPress={submitWifiAdminModal}
+              >
+                <Text style={styles.btnLabel}>
+                  {wifiAdminModal?.mode === "save-password" ? "Save" : "Continue"}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -871,24 +906,34 @@ export default function Connect() {
                   </Text>
                   <Text style={styles.droneWifiStatusLine}>
                     {droneWifiProvisionStatus == null
-                      ? "Could not read Wi‑Fi status over HTTPS yet. New random passphrase still tries first‑time provisioning (factory passphrase from config) or rotate if already provisioned."
+                      ? "HTTPS to 192.168.4.1 unavailable — stay on drone Wi‑Fi, disable mobile data, rebuild dev app if TLS never worked. Save current password below if you joined via Settings."
                       : droneWifiProvisionStatus.provisioned
                         ? "Drone reports NVS passphrase (provisioned)."
-                        : "Drone reports factory NVS passphrase. “New random” calls HTTPS provisioning using your saved passphrase if any, otherwise the app factory default."}
+                        : "Drone is on the factory hotspot password. Tap New random Wi‑Fi password when ready."}
                   </Text>
                 </View>
               </View>
             )}
 
             {isWifiLinked ? (
-              <Pressable
-                style={[styles.btn, styles.btnPrimary, styles.wifiSettingsBtn]}
-                onPress={handleRotateDroneWifiRandom}
-                disabled={wifiProvisioning}
-                hitSlop={8}
-              >
-                <Text style={styles.btnLabel}>New random Wi‑Fi password</Text>
-              </Pressable>
+              <>
+                <Pressable
+                  style={[styles.btn, styles.btnSecondary, styles.wifiSettingsBtn]}
+                  onPress={handleSaveCurrentWifiPassword}
+                  disabled={wifiProvisioning}
+                  hitSlop={8}
+                >
+                  <Text style={styles.btnLabel}>Save current hotspot password</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.btn, styles.btnPrimary, styles.wifiSettingsBtn]}
+                  onPress={handleRotateDroneWifiRandom}
+                  disabled={wifiProvisioning}
+                  hitSlop={8}
+                >
+                  <Text style={styles.btnLabel}>New random Wi‑Fi password</Text>
+                </Pressable>
+              </>
             ) : null}
 
             {isWifiLinked && (
