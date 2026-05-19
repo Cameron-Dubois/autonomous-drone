@@ -62,6 +62,9 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 | WIFI-05 | Wrong WiFi password | Auth failure shown; badge stays `DISCONNECTED`; user can retry |
 | WIFI-06 | Walk out of WiFi range | App detects loss; badge reverts to `DISCONNECTED`; warns user |
 | WIFI-07 | Reconnect to previously saved drone network (within range) | App auto-detects known SSID; reconnects within 10 s; Badge → CONNECTED |
+| WIFI-08 | First join with factory password → auto-provision | App shows new password once; drone `provisioned: true`; reconnect succeeds; telemetry on Home |
+| WIFI-09 | Wrong factory password on first provision attempt | `POST /wifi/provision` rejected; AP still uses factory password; user can retry |
+| WIFI-10 | In-app factory reset (Wi‑Fi connected) | NVS cleared; factory password works again; stored phone password cleared |
 
 ---
 
