@@ -28,6 +28,7 @@
 #include "console/console.h"
 #include "services/gap/ble_svc_gap.h"
 #include "bleprph.h"
+#include "connect_banner.h"
 
 #if CONFIG_EXAMPLE_EXTENDED_ADV
 static uint8_t ext_adv_pattern_1[] = {
@@ -245,19 +246,15 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
 
     switch (event->type) {
     case BLE_GAP_EVENT_CONNECT:
-        /* A new connection was established or a connection attempt failed. */
-        MODLOG_DFLT(INFO, "connection %s; status=%d ",
-                    event->connect.status == 0 ? "established" : "failed",
-                    event->connect.status);
         if (event->connect.status == 0) {
             rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
             assert(rc == 0);
-            bleprph_print_conn_desc(&desc);
             s_ble_active_conn = event->connect.conn_handle;
+            log_ble_connected_banner();
         } else {
+            MODLOG_DFLT(WARN, "BLE connection failed; status=%d\n", event->connect.status);
             s_ble_active_conn = BLE_HS_CONN_HANDLE_NONE;
         }
-        MODLOG_DFLT(INFO, "\n");
 
         if (event->connect.status != 0) {
             /* Connection failed; resume advertising. */
@@ -278,6 +275,7 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
         bleprph_print_conn_desc(&event->disconnect.conn);
         MODLOG_DFLT(INFO, "\n");
         s_ble_active_conn = BLE_HS_CONN_HANDLE_NONE;
+        drone_command_banner_reset();
 
         /* Connection terminated; resume advertising. */
 #if CONFIG_EXAMPLE_EXTENDED_ADV
@@ -288,13 +286,6 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
         return 0;
 
     case BLE_GAP_EVENT_CONN_UPDATE:
-        /* The central has updated the connection parameters. */
-        MODLOG_DFLT(INFO, "connection updated; status=%d ",
-                    event->conn_update.status);
-        rc = ble_gap_conn_find(event->conn_update.conn_handle, &desc);
-        assert(rc == 0);
-        bleprph_print_conn_desc(&desc);
-        MODLOG_DFLT(INFO, "\n");
         return 0;
 
     case BLE_GAP_EVENT_ADV_COMPLETE:
@@ -318,28 +309,9 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
         return 0;
 
     case BLE_GAP_EVENT_NOTIFY_TX:
-        MODLOG_DFLT(INFO, "notify_tx event; conn_handle=%d attr_handle=%d "
-                    "status=%d is_indication=%d",
-                    event->notify_tx.conn_handle,
-                    event->notify_tx.attr_handle,
-                    event->notify_tx.status,
-                    event->notify_tx.indication);
         return 0;
 
     case BLE_GAP_EVENT_SUBSCRIBE:
-        MODLOG_DFLT(INFO, "subscribe event; conn_handle=%d attr_handle=%d "
-                    "reason=%d prevn=%d curn=%d previ=%d curi=%d\n",
-                    event->subscribe.conn_handle,
-                    event->subscribe.attr_handle,
-                    event->subscribe.reason,
-                    event->subscribe.prev_notify,
-                    event->subscribe.cur_notify,
-                    event->subscribe.prev_indicate,
-                    event->subscribe.cur_indicate);
-        ESP_LOGI(tag, "Client subscribed: attr_handle=%d notify=%d indicate=%d",
-                 event->subscribe.attr_handle,
-                 event->subscribe.cur_notify,
-                 event->subscribe.cur_indicate);
         return 0;
 
     case BLE_GAP_EVENT_MTU:
@@ -559,6 +531,9 @@ wifi_gps_ble_stack_start(void)
         ESP_LOGE(tag, "Failed to init nimble %d ", ret);
         return;
     }
+
+    /* Hide per-notify "GATT procedure initiated" spam; CONNECT banner on link up. */
+    esp_log_level_set("NimBLE", ESP_LOG_WARN);
     /* Initialize the NimBLE host configuration. */
     ble_hs_cfg.reset_cb = bleprph_on_reset;
     ble_hs_cfg.sync_cb = bleprph_on_sync;

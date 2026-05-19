@@ -26,6 +26,7 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "bleprph.h"
+#include "connect_banner.h"
 #include "demo_takeoff.h"
 #include "services/ans/ble_svc_ans.h"
 #include "esp_timer.h"
@@ -176,6 +177,8 @@ drone_ack_build(const drone_cmd_t *cmd, uint8_t status, uint32_t now_ms,
 int
 drone_handle_command(const drone_cmd_t *cmd)
 {
+    drone_command_banner_if_changed(cmd->cmd);
+
     switch (cmd->cmd) {
     case DRONE_CMD_NOP:
         MODLOG_DFLT(INFO, "DRONE_CMD_NOP seq=%u\n", cmd->seq);
@@ -236,35 +239,13 @@ drone_handle_command(const drone_cmd_t *cmd)
         return 0;
 
     case DRONE_CMD_NAV_ROTATE_CW:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_ROTATE_CW seq=%u\n", cmd->seq);
-        return 0;
-
     case DRONE_CMD_NAV_ROTATE_CCW:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_ROTATE_CCW seq=%u\n", cmd->seq);
-        return 0;
-
     case DRONE_CMD_NAV_FORWARD:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_FORWARD seq=%u\n", cmd->seq);
-        return 0;
-
     case DRONE_CMD_NAV_STRAFE_LEFT:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_STRAFE_LEFT seq=%u (reserved)\n", cmd->seq);
-        return 0;
-
     case DRONE_CMD_NAV_STRAFE_RIGHT:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_STRAFE_RIGHT seq=%u (reserved)\n", cmd->seq);
-        return 0;
-
     case DRONE_CMD_NAV_HOLD:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_HOLD seq=%u\n", cmd->seq);
-        return 0;
-
     case DRONE_CMD_NAV_IDLE:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_IDLE seq=%u\n", cmd->seq);
-        return 0;
-
     case DRONE_CMD_NAV_BACKWARD:
-        MODLOG_DFLT(INFO, "DRONE_CMD_NAV_BACKWARD seq=%u\n", cmd->seq);
         return 0;
 
     case DRONE_CMD_DEMO_TAKEOFF:
@@ -384,10 +365,10 @@ gatt_svc_access(uint16_t conn_handle, uint16_t attr_handle,
 
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
         if (conn_handle != BLE_HS_CONN_HANDLE_NONE) {
-            MODLOG_DFLT(INFO, "Characteristic write; conn_handle=%d attr_handle=%d",
-                        conn_handle, attr_handle);
+            MODLOG_DFLT(INFO, "Phone BLE command write; conn_handle=%d len=%u",
+                        conn_handle, (unsigned)OS_MBUF_PKTLEN(ctxt->om));
         } else {
-            MODLOG_DFLT(INFO, "Characteristic write by NimBLE stack; attr_handle=%d",
+            MODLOG_DFLT(DEBUG, "Characteristic write by NimBLE stack; attr_handle=%d",
                         attr_handle);
         }
         uuid = ctxt->chr->uuid;

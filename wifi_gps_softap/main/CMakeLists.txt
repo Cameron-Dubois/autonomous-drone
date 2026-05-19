@@ -3,6 +3,7 @@ idf_component_register(
         "softap_gps_main.c"
         "wifi_credentials.c"
         "wifi_softap.c"
+        "connect_banner.c"
         "wifi_provision_http.c"
         "ble_stack.c"
         "ble_misc.c"

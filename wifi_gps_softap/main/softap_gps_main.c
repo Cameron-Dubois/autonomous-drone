@@ -156,7 +156,23 @@ static esp_err_t ws_handler(httpd_req_t *req)
         return ret;
     }
 
-    /* TEXT / BINARY from phone (e.g. command frames); consumed, flight hookup TBD */
+    if (ws_pkt.type == HTTPD_WS_TYPE_TEXT || ws_pkt.type == HTTPD_WS_TYPE_BINARY) {
+        if (payload && ws_pkt.len > 0) {
+            drone_cmd_t cmd;
+            int prc = drone_cmd_parse(payload, (uint16_t)ws_pkt.len, &cmd);
+            if (prc != 0) {
+                ESP_LOGW(TAG, "Phone WSS command parse failed rc=%d len=%u", prc,
+                         (unsigned)ws_pkt.len);
+            } else {
+                ESP_LOGI(TAG, "Phone WSS command id=0x%02x seq=%u", cmd.cmd, cmd.seq);
+                int st = drone_handle_command(&cmd);
+                if (st != 0) {
+                    ESP_LOGW(TAG, "Phone WSS command id=0x%02x failed status=%d", cmd.cmd, st);
+                }
+            }
+        }
+    }
+
     if (payload) {
         free(payload);
     }
@@ -323,9 +339,7 @@ static void start_https_server(void)
 static void sensor_task(void *arg)
 {
     (void)arg;
-    TickType_t last_log = xTaskGetTickCount();
-    TickType_t last_ws = last_log;
-    uint32_t prev_rx_total = 0;
+    TickType_t last_ws = xTaskGetTickCount();
 
     while (1) {
         gps_uart_poll();
@@ -341,67 +355,6 @@ static void sensor_task(void *arg)
             bool baro_ok_ws = baro_read_relative_altitude_m(&baro_alt_ws);
             ws_push_telemetry(&fix_ws, compass_ok_ws, heading_ws, baro_ok_ws, baro_alt_ws);
             last_ws = now;
-        }
-
-        if ((now - last_log) >= pdMS_TO_TICKS(1000)) {
-            gps_fix_t fix;
-            gps_get_fix(&fix);
-
-            gps_stats_t st;
-            gps_get_stats(&st);
-            uint32_t rx_per_sec = st.rx_bytes_total - prev_rx_total;
-            prev_rx_total = st.rx_bytes_total;
-
-            float heading = 0.0f;
-            bool compass_ok = compass_read_heading_deg(&heading);
-            compass_debug_t cdbg = {0};
-            bool cdbg_ok = compass_get_debug(&cdbg);
-
-            float baro_alt_log = 0.0f;
-            bool baro_ok_log = baro_read_relative_altitude_m(&baro_alt_log);
-            ESP_LOGI(TAG, "baro=%s alt=%.2f m (relative to boot baseline)",
-                     baro_ok_log ? "OK" : (baro_is_ready() ? "WAIT" : "OFF"),
-                     baro_ok_log ? (double)baro_alt_log : 0.0);
-
-            const char *ctype = "NONE";
-            switch (compass_get_type()) {
-            case COMPASS_TYPE_QMC5883:
-                ctype = "QMC5883";
-                break;
-            case COMPASS_TYPE_HMC5883L:
-                ctype = "HMC5883L";
-                break;
-            default:
-                break;
-            }
-
-            char rose[8] = {0};
-            compass_format_cardinal(heading, rose, sizeof(rose));
-
-            if (cdbg_ok) {
-                int dx = (int)cdbg.x_max - (int)cdbg.x_min;
-                int dy = (int)cdbg.y_max - (int)cdbg.y_min;
-                const char *cal_quality = ((dx >= 300) && (dy >= 300)) ? "GOOD"
-                    : ((dx >= 120) && (dy >= 120))                      ? "PARTIAL"
-                                                                        : "POOR";
-                ESP_LOGI(TAG,
-                         "GPS valid=%d fix=%d sats=%d hdop=%.1f lat=%.6f lon=%.6f | "
-                         "uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f° %s raw=%.1f cal=%.1f "
-                         "x=%d y=%d x[%d..%d] y[%d..%d] dx=%d dy=%d cal_ok=%d cal_q=%s",
-                         fix.valid, fix.fix_quality, fix.satellites, fix.hdop, fix.lat_deg, fix.lon_deg,
-                         (unsigned long)rx_per_sec, (unsigned long)st.gga_parsed_count, ctype,
-                         compass_ok ? "OK" : "WAIT", heading, rose, cdbg.heading_raw_deg, cdbg.heading_cal_deg,
-                         (int)cdbg.x_raw, (int)cdbg.y_raw, (int)cdbg.x_min, (int)cdbg.x_max,
-                         (int)cdbg.y_min, (int)cdbg.y_max, dx, dy, cdbg.calibrated ? 1 : 0, cal_quality);
-            } else {
-                ESP_LOGI(TAG,
-                         "GPS valid=%d fix=%d sats=%d hdop=%.1f lat=%.6f lon=%.6f | "
-                         "uart_rx_B/s=%lu gga_cnt=%lu | compass=%s %s heading=%.1f° %s",
-                         fix.valid, fix.fix_quality, fix.satellites, fix.hdop, fix.lat_deg, fix.lon_deg,
-                         (unsigned long)rx_per_sec, (unsigned long)st.gga_parsed_count, ctype,
-                         compass_ok ? "OK" : "WAIT", heading, rose);
-            }
-            last_log = now;
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -428,6 +381,7 @@ void app_main(void)
     /* Motors init deferred until DEMO_TAKEOFF / motors_runtime_prepare() — see motor_tick_task.c */
 
     gps_uart_init();
+    gps_nmea_set_quiet(true);
     esp_err_t cerr = compass_init();
     if (cerr != ESP_OK) {
         ESP_LOGW(TAG, "Compass init failed (%s) — GPS-only; check SDA/SCL",

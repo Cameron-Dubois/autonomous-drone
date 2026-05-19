@@ -26,3 +26,6 @@ typedef struct {
 } gps_stats_t;
 
 void gps_get_stats(gps_stats_t *out);
+
+/** When true: no first-UART preview or periodic Raw GGA lines (wifi_gps_softap default). */
+void gps_nmea_set_quiet(bool quiet);

@@ -15,10 +15,20 @@ static uint32_t s_rx_bytes_total;
 static uint32_t s_gga_parsed_count;
 static bool s_logged_first_rx_preview;
 static uint32_t s_gga_raw_log_mod = 50;
+static bool s_quiet;
+
+void gps_nmea_set_quiet(bool quiet)
+{
+    s_quiet = quiet;
+    if (quiet) {
+        s_gga_raw_log_mod = 0;
+        s_logged_first_rx_preview = true;
+    }
+}
 
 static void log_rx_preview_once(const uint8_t *buf, int len)
 {
-    if (s_logged_first_rx_preview || !buf || len <= 0) {
+    if (s_quiet || s_logged_first_rx_preview || !buf || len <= 0) {
         return;
     }
 
@@ -142,7 +152,8 @@ void gps_uart_poll(void)
 
                     parse_gga(line);
                     s_gga_parsed_count++;
-                    if (s_gga_raw_log_mod > 0 && (s_gga_parsed_count % s_gga_raw_log_mod) == 0) {
+                    if (!s_quiet && s_gga_raw_log_mod > 0 &&
+                        (s_gga_parsed_count % s_gga_raw_log_mod) == 0) {
                         ESP_LOGI(TAG, "Raw GGA #%lu: %s",
                                  (unsigned long)s_gga_parsed_count, gga_raw);
                     }
