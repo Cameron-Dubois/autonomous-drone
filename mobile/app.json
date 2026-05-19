@@ -50,6 +50,7 @@
         }
       ],
       "react-native-wifi-reborn",
+      "expo-secure-store",
       "./plugins/withDroneWifiTlsAndroid.js"
     ],
     "extra": {
