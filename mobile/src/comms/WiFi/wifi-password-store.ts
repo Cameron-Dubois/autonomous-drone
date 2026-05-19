@@ -1,11 +1,16 @@
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 
+/** SSID trimming (Android may quote SSIDs). Used before hashing storage keys. */
+export function normalizeWifiSsid(ssid: string): string {
+  return ssid.replace(/^"|"$/g, "").trim();
+}
+
 /**
- * expo-secure-store keys must be non-empty and alphanumeric only (no SSIDs with spaces/colons/etc.).
+ * expo-secure-store keys must be non-empty and alphanumeric only (no raw SSIDs with spaces/colons).
  */
 async function secureStoreKeyForSsid(ssid: string): Promise<string | null> {
-  const t = ssid.trim();
+  const t = normalizeWifiSsid(ssid);
   if (!t) return null;
   const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, t);
   return `wifi${digest}`;

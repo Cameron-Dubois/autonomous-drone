@@ -17,5 +17,8 @@ void motors_tick(void);
 /** Start FreeRTOS task that calls motors_tick() continuously (required for DSHOT). */
 void motors_start_background_tick(void);
 
+/** One-time ESC init + background tick (call before spin commands, not at boot). */
+void motors_runtime_prepare(void);
+
 void motor_set_direction(motor_t motor, bool reversed);
 int motor_get_gpio(int motor_idx);
