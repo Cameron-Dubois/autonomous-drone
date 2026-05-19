@@ -1,3 +1,5 @@
+import * as Crypto from "expo-crypto";
+
 import { DRONE_AP_HOST } from "../../stream/droneStream";
 
 const DRONE_HTTPS_BASE = `https://${DRONE_AP_HOST}`;
@@ -10,13 +12,12 @@ export type WifiProvisionStatus = {
 const PROVISION_ALPHABET =
   "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
-/** Generate a WPA2-safe random password (default 16 chars). */
-export function generateDroneWifiPassword(length = 16): string {
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
+/** Generate WPA2 passphrase using secure random bytes (RN has no Web Crypto global). */
+export async function generateDroneWifiPassword(length = 16): Promise<string> {
+  const raw = await Crypto.getRandomBytesAsync(length);
   let out = "";
   for (let i = 0; i < length; i++) {
-    out += PROVISION_ALPHABET[bytes[i]! % PROVISION_ALPHABET.length];
+    out += PROVISION_ALPHABET[raw[i]! % PROVISION_ALPHABET.length];
   }
   return out;
 }

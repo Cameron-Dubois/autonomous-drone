@@ -1,7 +1,7 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
-import { DroneCmd } from "../../src/protocol/types";
+import { buildCommandBytes, DroneCmd, type Command } from "../../src/prototype/types";
 import type { NavigationSnapshot } from "../../src/nav/types";
 import {
   useFollowMockController,
@@ -77,10 +77,15 @@ function makeProbe(captured: Captured) {
 
 function mockComms(): FollowMockCommsLike & { sent: Uint8Array[] } {
   const sent: Uint8Array[] = [];
+  const push = jest.fn(async (b: Uint8Array) => {
+    sent.push(b);
+  });
   return {
     sent,
-    sendBytes: jest.fn(async (b: Uint8Array) => {
-      sent.push(b);
+    sendBytesBleOnly: push,
+    sendBytes: push,
+    send: jest.fn(async (cmd: Command) => {
+      sent.push(buildCommandBytes(cmd));
     }),
   };
 }
@@ -147,15 +152,14 @@ describe("useFollowMockController", () => {
     });
 
     // First tick from IDLE with +yaw 45 -> ROTATE CW: M1+M4 = 40, M2+M3 = 0.
-    // Since prev throttles are all 0, diff dispatch should fire for M1 and M4 (changed),
-    // and skip M2/M3 (unchanged).
-    const decoded = comms.sent.filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
+    const motorPkts = comms.sent.filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
+    expect(motorPkts.length).toBe(4);
     const byIdx = new Map<number, number>();
-    for (const d of decoded) byIdx.set(d.idx, d.throttle);
-    expect(byIdx.get(0)).toBe(40); //M1
-    expect(byIdx.get(3)).toBe(40); //M4
-    expect(byIdx.has(1)).toBe(false); //M2 unchanged from 0
-    expect(byIdx.has(2)).toBe(false); //M3 unchanged from 0
+    for (const d of motorPkts) byIdx.set(d.idx, d.throttle);
+    expect(byIdx.get(0)).toBe(40); // M1
+    expect(byIdx.get(1)).toBe(0); // M2
+    expect(byIdx.get(2)).toBe(0); // M3
+    expect(byIdx.get(3)).toBe(40); // M4
     expect(captured.latest!.state).toBe("ROTATE");
 
     act(() => {
@@ -219,7 +223,7 @@ describe("useFollowMockController", () => {
     });
   });
 
-  it("repeated identical throttles between ticks do not re-send (diff dispatch)", () => {
+  it("repeated ticks re-send NAV + full motor quartet when output is unchanged", () => {
     const captured: Captured = { latest: null };
     const Probe = makeProbe(captured);
     const comms = mockComms();
@@ -236,21 +240,22 @@ describe("useFollowMockController", () => {
     });
     const sentAfterFirstTick = comms.sent.length;
 
-    // 3 more ticks with the same snapshot -> no new motor writes (NAV already sent once).
+    /* period = 100ms @ 10Hz → 300ms crosses three more firings → 12 motor + 3 NAV echoes */
     act(() => {
       jest.advanceTimersByTime(300);
     });
-    const motorWritesAfter = comms.sent
-      .slice(sentAfterFirstTick)
-      .filter((b) => isMotorCmd(b[1])).length;
-    expect(motorWritesAfter).toBe(0);
+    const sliceAfter = comms.sent.slice(sentAfterFirstTick);
+    const motorWritesAfter = sliceAfter.filter((b) => isMotorCmd(b[1])).length;
+    expect(motorWritesAfter).toBe(12);
+    const navRepeatsAfter = sliceAfter.filter((b) => b[1] === DroneCmd.NAV_ROTATE_CW).length;
+    expect(navRepeatsAfter).toBe(3);
 
     act(() => {
       tr!.unmount();
     });
   });
 
-  it("snapshot change from ROTATE to FORWARD only sends diffs", () => {
+  it("snapshot change ROTATE→FORWARD still sends full quartet (not diff-only motors)", () => {
     const captured: Captured = { latest: null };
     const Probe = makeProbe(captured);
     const comms = mockComms();
@@ -276,11 +281,13 @@ describe("useFollowMockController", () => {
       jest.advanceTimersByTime(110);
     });
 
-    // Diff vs prev [40,0,0,40]: M1 unchanged (40), M2 unchanged (0), M3 changed 0->40, M4 changed 40->0.
-    const newWrites = comms.sent.slice(beforeUpdate).filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
-    const ids = newWrites.map((w) => w.idx).sort();
-    expect(ids).toEqual([2, 3]); //only M3 and M4 should re-send
-    const byIdx = new Map(newWrites.map((w) => [w.idx, w.throttle] as const));
+    const sliceTick2 = comms.sent.slice(beforeUpdate);
+    expect(navCmdIds(sliceTick2)).toContain(DroneCmd.NAV_FORWARD);
+    const forwardMotors = sliceTick2.filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
+    expect(forwardMotors.length).toBe(4);
+    const byIdx = new Map(forwardMotors.map((w) => [w.idx, w.throttle] as const));
+    expect(byIdx.get(0)).toBe(40);
+    expect(byIdx.get(1)).toBe(0);
     expect(byIdx.get(2)).toBe(40);
     expect(byIdx.get(3)).toBe(0);
     expect(captured.latest!.state).toBe("FORWARD");
@@ -412,13 +419,12 @@ describe("useFollowMockController", () => {
     });
 
     const newWrites = comms.sent.slice(beforeUnhealthy).filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
-    // Only the previously non-zero motors (M1, M4) need to be zeroed.
     const writesByIdx = new Map<number, number>();
     for (const w of newWrites) writesByIdx.set(w.idx, w.throttle);
     expect(writesByIdx.get(0)).toBe(0);
+    expect(writesByIdx.get(1)).toBe(0);
+    expect(writesByIdx.get(2)).toBe(0);
     expect(writesByIdx.get(3)).toBe(0);
-    expect(writesByIdx.has(1)).toBe(false);
-    expect(writesByIdx.has(2)).toBe(false);
     expect(captured.latest!.state).toBe("IDLE");
 
     act(() => {
@@ -480,15 +486,18 @@ describe("useFollowMockController", () => {
       tr!.unmount();
     });
 
-    const unmountWrites = comms.sent.slice(beforeUnmount).filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
+    const sliceAfterUnmount = comms.sent.slice(beforeUnmount);
+    const unmountWrites = sliceAfterUnmount.filter((b) => isMotorCmd(b[1])).map(decodeMotorPacket);
     expect(unmountWrites.length).toBe(4); //forced zero per motor
     for (const w of unmountWrites) expect(w.throttle).toBe(0);
+    expect(navCmdIds(sliceAfterUnmount)).toContain(DroneCmd.NAV_IDLE);
+    expect(sliceAfterUnmount.some((b) => b[1] === DroneCmd.FOLLOW_TOGGLE)).toBe(true);
 
-    // No ticks should fire after unmount.
+    // No ticks should fire after unmount (only FOLLOW + NAV teardown + zeros).
     act(() => {
       jest.advanceTimersByTime(1000);
     });
-    expect(comms.sent.length).toBe(beforeUnmount + 4);
+    expect(comms.sent.length).toBe(beforeUnmount + 6); // FOLLOW_TOGGLE, NAV_IDLE, 4× motor zero
   });
 
   it("start() while already running is a no-op", () => {
@@ -509,21 +518,70 @@ describe("useFollowMockController", () => {
     const sentAfterOne = comms.sent.length;
 
     act(() => {
-      captured.latest!.start(); //duplicate, should not create another interval
+      captured.latest!.start(); // duplicate: must not attach a second interval
     });
     act(() => {
-      jest.advanceTimersByTime(110); //one tick only
+      jest.advanceTimersByTime(50);
     });
 
-    // Only 1 additional tick worth of writes (which is 0 for unchanged snapshot).
     expect(comms.sent.length).toBe(sentAfterOne);
+
+    act(() => {
+      jest.advanceTimersByTime(120); // crosses next scheduled tick (~100 ms period)
+    });
+
+    expect(comms.sent.length - sentAfterOne).toBeGreaterThanOrEqual(5); // NAV + 4 motors
 
     act(() => {
       tr!.unmount();
     });
   });
 
-  it("never sends ARM, DISARM, ESTOP, or HEARTBEAT (only SET_MOTOR and NAV intent)", () => {
+  it("start() emits FOLLOW_TOGGLE on the BLE follow path (typed packet bytes)", () => {
+    const captured: Captured = { latest: null };
+    const Probe = makeProbe(captured);
+    const comms = mockComms();
+
+    let tr: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tr = TestRenderer.create(<Probe snapshot={ROTATE_RIGHT()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      captured.latest!.start();
+    });
+
+    expect(comms.sent.some((b) => b[1] === DroneCmd.FOLLOW_TOGGLE)).toBe(true);
+
+    act(() => {
+      tr!.unmount();
+    });
+  });
+
+  it("uses sendBytesBleOnly when exposed (HybridComms) and skips sendBytes for payloads", () => {
+    const captured: Captured = { latest: null };
+    const Probe = makeProbe(captured);
+    const ble = jest.fn(async (_b: Uint8Array) => {});
+    const bytes = jest.fn(async (_b: Uint8Array) => {});
+    const comms: FollowMockCommsLike = {
+      sendBytesBleOnly: ble,
+      sendBytes: bytes,
+    };
+
+    let tr: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tr = TestRenderer.create(<Probe snapshot={ROTATE_RIGHT()} comms={comms} tickHz={10} />);
+    });
+    act(() => {
+      captured.latest!.start();
+    });
+    expect(ble).toHaveBeenCalled();
+    expect(bytes).not.toHaveBeenCalled();
+    act(() => {
+      tr!.unmount();
+    });
+  });
+
+  it("never sends ARM, DISARM, ESTOP, or HEARTBEAT (SET_MOTOR, NAV intents, FOLLOW_TOGGLE only)", () => {
     const captured: Captured = { latest: null };
     const Probe = makeProbe(captured);
     const comms = mockComms();
@@ -554,7 +612,8 @@ describe("useFollowMockController", () => {
         c === DroneCmd.NAV_FORWARD ||
         c === DroneCmd.NAV_HOLD ||
         c === DroneCmd.NAV_IDLE ||
-        c === DroneCmd.NAV_BACKWARD;
+        c === DroneCmd.NAV_BACKWARD ||
+        c === DroneCmd.FOLLOW_TOGGLE;
       expect(allowed).toBe(true);
     }
 

@@ -212,7 +212,7 @@ export default function Connect() {
           if (!passwordUsed) {
             throw new Error("Factory Wi‑Fi password is required for first-time setup.");
           }
-          const newPassword = generateDroneWifiPassword();
+          const newPassword = await generateDroneWifiPassword();
           await provisionWifi(newPassword, passwordUsed);
           await setStoredWifiPassword(status.ssid, newPassword);
           setProvisionedPwdModal({ ssid: status.ssid, password: newPassword });
@@ -486,7 +486,7 @@ export default function Connect() {
                   /* status fetch failed — infer from HTTPS POST outcomes below */
                 }
 
-                const newPassword = generateDroneWifiPassword();
+                const newPassword = await generateDroneWifiPassword();
                 const stored = await getStoredWifiPassword(ssidKey);
                 const factoryFallback = DRONE_WIFI_FACTORY_PASSWORD;
                 const factoryOrStoredForFirstProvision = stored ?? factoryFallback;
