@@ -459,7 +459,7 @@ export default function Connect() {
     );
   }, [comms, connectedWifiId, isWifiLinked]);
 
-  /** Randomize WPA2 PSK without factory reset — requires drone firmware with POST /wifi/rotate-password */
+  /** Assign a random SoftAP passphrase: provisions over HTTPS when needed (works after joining via Settings), then rotates once NVS provisioned */
   const handleRotateDroneWifiRandom = useCallback(() => {
     const ssidKey = connectedWifiId;
     if (!ssidKey || !isWifiLinked) {
@@ -468,7 +468,7 @@ export default function Connect() {
 
     Alert.alert(
       "New random hotspot password?",
-      "The drone restarts Wi‑Fi. Save the password from the next screen. Android: this app scans and reconnects when possible.",
+      "The drone restarts Wi‑Fi. Save the password from the next screen. Android: this app tries to reconnect when possible.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -478,16 +478,53 @@ export default function Connect() {
               setWifiError(null);
               setWifiProvisioning(true);
               try {
-                const stored = await getStoredWifiPassword(ssidKey);
-                if (!stored) {
-                  Alert.alert(
-                    "Password required",
-                    "Save the drone hotspot password once (via Connect), then randomize works."
-                  );
-                  return;
+                let st: WifiProvisionStatus | null = null;
+                try {
+                  st = await fetchWifiStatus();
+                  setDroneWifiProvisionStatus(st);
+                } catch {
+                  /* status fetch failed — infer from HTTPS POST outcomes below */
                 }
+
                 const newPassword = generateDroneWifiPassword();
-                const res = await rotateWifiPassword(newPassword, stored);
+                const stored = await getStoredWifiPassword(ssidKey);
+                const factoryFallback = DRONE_WIFI_FACTORY_PASSWORD;
+                const factoryOrStoredForFirstProvision = stored ?? factoryFallback;
+
+                let res: { ok: boolean; ssid: string };
+
+                if (st?.provisioned === true) {
+                  if (!stored) {
+                    Alert.alert(
+                      "Current hotspot passphrase needed",
+                      "Use Connect on your drone SSID below and enter your current passphrase so we save it securely. Android may still associate via system Wi‑Fi; this only stores what you typed for HTTPS rotation."
+                    );
+                    return;
+                  }
+                  res = await rotateWifiPassword(newPassword, stored);
+                } else {
+                  try {
+                    res = await provisionWifi(newPassword, factoryOrStoredForFirstProvision);
+                  } catch (e) {
+                    const alreadyProvisioned =
+                      e instanceof Error &&
+                      (/already_provisioned/i.test(e.message) ||
+                        /\b409\b/i.test(e.message) ||
+                        /WiFi API 409/.test(e.message));
+                    if (alreadyProvisioned && stored) {
+                      res = await rotateWifiPassword(newPassword, stored);
+                    } else if (alreadyProvisioned && !stored) {
+                      Alert.alert(
+                        "Hotspot already provisioned",
+                        "HTTPS says the drone is no longer on a factory passphrase. Tap Connect below on your drone network, enter its current passphrase once so we save it, then retry."
+                      );
+                      return;
+                    } else {
+                      throw e;
+                    }
+                  }
+                }
+
                 await setStoredWifiPassword(ssidKey, newPassword);
                 const reconnectSsid = res.ssid || ssidKey;
                 setDroneWifiProvisionStatus({ provisioned: true, ssid: reconnectSsid });
@@ -501,7 +538,7 @@ export default function Connect() {
                     const list = await client.scan({ timeoutMs: SCAN_TIMEOUT_MS });
                     const match =
                       list.find((n) => n.ssid === reconnectSsid) ??
-                      list.find((n) => n.ssid === DRONE_WIFI_FACTORY_SSID.trim());
+                      list.find((n) => n.ssid === DRONE_WIFI_FACTORY_SSID);
                     if (match) {
                       await client.connect(match.id, newPassword);
                       await client.refreshConnectionStatus();
@@ -510,7 +547,7 @@ export default function Connect() {
                       if (online) void comms.connect();
                     }
                   } catch {
-                    // User can scan manually
+                    // User may reconnect from system Wi‑Fi
                   }
                 } else {
                   Alert.alert(
@@ -522,10 +559,15 @@ export default function Connect() {
                 const hint =
                   e instanceof Error &&
                   (/404|ENOTFOUND|fetch|Network/i.test(e.message) || e.message.includes("WiFi API"));
-                const msg = e instanceof Error ? e.message : "Rotate Wi‑Fi failed";
-                const full = hint ? `${msg}\n\nOlder drone firmware lacks POST /wifi/rotate-password — flash latest softap.` : msg;
+                const raw = e instanceof Error ? e.message : "Wi‑Fi update failed";
+                const full =
+                  hint ?
+                    `${raw}\n\nCheck TLS to 192.168.4.1 and drone firmware provisioning / rotate-password support.`
+                  : raw.includes("factory_password") ?
+                    `${raw}\n\nApp default factory passphrase is "${DRONE_WIFI_FACTORY_PASSWORD}". Set EXPO_PUBLIC_DRONE_WIFI_DEFAULT_PASSWORD or firmware menuconfig to match.`
+                  : raw;
                 setWifiError(full);
-                Alert.alert("Rotate failed", full);
+                Alert.alert("Wi‑Fi update failed", full);
               } finally {
                 setWifiProvisioning(false);
               }
@@ -827,12 +869,18 @@ export default function Connect() {
                   <Text style={styles.deviceName}>
                     {connectedWifiId ?? "Connected (name unavailable on this Android version)"}
                   </Text>
+                  <Text style={styles.droneWifiStatusLine}>
+                    {droneWifiProvisionStatus == null
+                      ? "Could not read Wi‑Fi status over HTTPS yet. New random passphrase still tries first‑time provisioning (factory passphrase from config) or rotate if already provisioned."
+                      : droneWifiProvisionStatus.provisioned
+                        ? "Drone reports NVS passphrase (provisioned)."
+                        : "Drone reports factory NVS passphrase. “New random” calls HTTPS provisioning using your saved passphrase if any, otherwise the app factory default."}
+                  </Text>
                 </View>
               </View>
             )}
 
-            {isWifiLinked &&
-            (droneWifiProvisionStatus == null || droneWifiProvisionStatus.provisioned) ? (
+            {isWifiLinked ? (
               <Pressable
                 style={[styles.btn, styles.btnPrimary, styles.wifiSettingsBtn]}
                 onPress={handleRotateDroneWifiRandom}
@@ -841,12 +889,6 @@ export default function Connect() {
               >
                 <Text style={styles.btnLabel}>New random Wi‑Fi password</Text>
               </Pressable>
-            ) : null}
-
-            {isWifiLinked && droneWifiProvisionStatus?.provisioned === false ? (
-              <Text style={[styles.hint, styles.wifiHintBox]}>
-                {"First time: connect with your drone's factory password from this tab. We then rotate to a random password automatically and show it to save."}
-              </Text>
             ) : null}
 
             {isWifiLinked && (
@@ -966,7 +1008,6 @@ const styles = StyleSheet.create({
     },
     label: { fontSize: fontSizes.xs, letterSpacing: 2, color: "rgba(255,255,255,0.4)", marginBottom: spacing.md, marginTop: spacing.lg },
     hint: { fontSize: fontSizes.sm, color: "rgba(255,255,255,0.35)", marginBottom: spacing.md },
-    wifiHintBox: { marginBottom: spacing.md },
     errorBox: {
       padding: spacing.md,
       borderRadius: radii.sm,
@@ -1042,6 +1083,13 @@ const styles = StyleSheet.create({
         fontSize: fontSizes.xs,
         color: "rgba(255,255,255,0.4)",
         letterSpacing: 0.5,
+    },
+    droneWifiStatusLine: {
+        marginTop: spacing.sm,
+        fontSize: fontSizes.xs,
+        color: "rgba(0,242,255,0.55)",
+        letterSpacing: 0.4,
+        lineHeight: 18,
     },
     cmdRow: {
         flexDirection: "row",
