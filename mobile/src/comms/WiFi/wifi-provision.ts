@@ -37,7 +37,8 @@ export async function ensureDroneHttpsReachable(): Promise<void> {
   const ok = await probeDroneReachable(5000);
   if (!ok) {
     throw new DroneHttpsUnreachableError(
-      `Cannot reach https://${DRONE_AP_HOST}/. Join the drone hotspot in Settings, turn off mobile data if needed, then try again.`
+      `Cannot reach https://${DRONE_AP_HOST}/. Join the drone hotspot (not your home router), turn mobile data/VPN off, then retry.\n\n` +
+        `If nothing loads in the browser either, rebuild this app after syncing TLS: prebuild pulls wifi_gps_softap/main/certs/servercert.pem (see plugins/withDroneWifiTlsAndroid.js). Reflashed drone firmware regenerates certs—rebuild Android so trust matches the drone.`
     );
   }
 }
@@ -58,8 +59,12 @@ async function droneFetch(path: string, init?: RequestInit): Promise<Response> {
         e
       );
     }
+    /* RN fetch reports TLS / routing failures as generic "Network request failed". */
+    const fixes =
+      "If you already joined the drone hotspot: disable mobile data and VPN so traffic to 192.168.4.1 uses Wi‑Fi. " +
+      "Android must use a rebuilt dev/release binary that ships the drone TLS certificate (plugins/withDroneWifiTlsAndroid copies wifi_gps_softap/main/certs/servercert.pem at prebuild)—if you regenerated firmware certs, prebuild/build again.";
     throw new DroneHttpsUnreachableError(
-      `Network request failed for https://${DRONE_AP_HOST}${path}. Join the drone hotspot (not home Wi‑Fi), then retry.`,
+      `Network request failed for https://${DRONE_AP_HOST}${path}. ${fixes}`,
       e
     );
   } finally {

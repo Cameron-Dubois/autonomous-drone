@@ -1,30 +1,20 @@
 /**
  * useFollowMockController — runtime glue around `evaluateFollowMock`.
  *
- * Drives the pure follow-mock state machine on a fixed-rate interval, sending
- * per-motor SET_MOTOR_N writes over the existing DroneComms transport. Pairs
- * with `useFollowToPhoneNavigation` for the NavigationSnapshot input.
+ * BLE demo: sends a single NAV_* opcode that matches the Home “Follow phase” chip
+ * (same labels as FollowState — see `followDisplayToBleOpcode` mapping below).
+ * Emits only when the displayed phase changes → quiet link, drone UART still readable.
  *
- * Safety:
- *   - NEVER sends ARM. `flight_control` only honors SET_MOTOR while DISARMED
- *     (bench mode), so these biased throttles can never produce flight.
- *   - On stop / unmount / watchdog trip, forces a single zero-write to every
- *     motor so a previously biased motor cannot keep spinning.
- *   - Watchdog: if the snapshot has not been refreshed for STALE_SNAPSHOT_MS
- *     (default 1500 ms), the next tick treats `running` as false, which makes
- *     the evaluator emit IDLE + zeros.
+ * Pairs with `useFollowToPhoneNavigation` for the NavigationSnapshot input; motor
+ * throttles in `motorThrottles` stay for UI sliders only — not mirrored over BLE.
  *
- * Emission for drone UART demos:
- *   - Every tick echoes the evaluator's NAV_* (`navIntentCommandId`) and ALL four
- *     SET_MOTOR packets so telemetry matches the app's motor sliders.
- *   - Prefer `sendBytesBleOnly` when present (`HybridComms`) so mirrored traffic stays
- *     on BLE; otherwise `sendBytes` (mixed transport).
+ * Prefer `sendBytesBleOnly` when present (`HybridComms`) so traffic stays on BLE.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DroneComms } from "../comms/comms";
-import { buildCommandBytes, buildRawCommandBytes, DroneCmd, navIntentCommandId } from "../prototype/types";
+import { buildRawCommandBytes, DroneCmd, navIntentCommandId } from "../prototype/types";
 import type { NavigationSnapshot } from "../nav/types";
 
 import {
@@ -35,19 +25,16 @@ import {
   type MotorThrottles,
 } from "./follow-mock";
 
+/** Home Follow chip ↔ drone BLE opcode wiring (intent-only for UART visibility). */
+function followDisplayToBleOpcode(state: FollowState, yawErrorDeg: number | null): number | null {
+  return navIntentCommandId(state, yawErrorDeg);
+}
+
 const DEFAULT_TICK_HZ = 10;
 const STALE_SNAPSHOT_MS = 1500;
 
-const MOTOR_CMDS: readonly number[] = [
-  DroneCmd.SET_MOTOR_1,
-  DroneCmd.SET_MOTOR_2,
-  DroneCmd.SET_MOTOR_3,
-  DroneCmd.SET_MOTOR_4,
-];
-
 const ZERO_THROTTLES: MotorThrottles = [0, 0, 0, 0];
 
-/** Prefer BLE-only uplink (`HybridComms`) so drone serial logs mirror the Follow UI. */
 export type FollowMockCommsLike = Pick<DroneComms, "sendBytes"> &
   Partial<Pick<DroneComms, "send">> & {
     sendBytesBleOnly?(bytes: Uint8Array): Promise<void>;
@@ -83,12 +70,9 @@ function mergeConfig(partial?: Partial<FollowMockConfig>): FollowMockConfig {
   return partial ? { ...DEFAULT_FOLLOW_MOCK_CONFIG, ...partial } : DEFAULT_FOLLOW_MOCK_CONFIG;
 }
 
-export function useFollowMockController(
-  opts: UseFollowMockControllerOptions
-): FollowMockControllerView {
+export function useFollowMockController(opts: UseFollowMockControllerOptions): FollowMockControllerView {
   const { tickHz = DEFAULT_TICK_HZ, staleSnapshotMs = STALE_SNAPSHOT_MS } = opts;
 
-  // Live refs read inside the interval (no re-renders trigger interval recreation).
   const snapshotRef = useRef<NavigationSnapshot>(opts.snapshot);
   snapshotRef.current = opts.snapshot;
 
@@ -102,7 +86,8 @@ export function useFollowMockController(
   nowRef.current = opts.now ?? (() => Date.now());
 
   const stateRef = useRef<FollowState>("IDLE");
-  const lastThrottlesRef = useRef<MotorThrottles>(ZERO_THROTTLES);
+  /** Last NAV opcode sent on BLE; omit resends while chip text / intent unchanged. */
+  const lastBleOpcodeRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [view, setView] = useState<{
@@ -112,18 +97,16 @@ export function useFollowMockController(
     reason: string;
   }>({ state: "IDLE", running: false, throttles: ZERO_THROTTLES, reason: "idle" });
 
-  const sendMotorsDisplayed = useCallback((throttles: MotorThrottles) => {
-    const c = commsRef.current;
-    for (let i = 0; i < 4; i++) {
-      dispatchFollowPacket(c, buildRawCommandBytes(MOTOR_CMDS[i], [throttles[i]]));
-    }
-    lastThrottlesRef.current = throttles;
+  const sendBleFollowPhaseIfChanged = useCallback((state: FollowState, yawErrorDeg: number | null) => {
+    const cmdId = followDisplayToBleOpcode(state, yawErrorDeg);
+    if (cmdId == null || cmdId === lastBleOpcodeRef.current) return;
+    dispatchFollowPacket(commsRef.current, buildRawCommandBytes(cmdId, []));
+    lastBleOpcodeRef.current = cmdId;
   }, []);
 
-  const sendNavIntent = useCallback((phase: FollowState, yawErrorDeg: number | null) => {
-    const cmdId = navIntentCommandId(phase, yawErrorDeg);
-    if (cmdId == null) return;
-    dispatchFollowPacket(commsRef.current, buildRawCommandBytes(cmdId, []));
+  const sendBleNavIdleAlways = useCallback(() => {
+    dispatchFollowPacket(commsRef.current, buildRawCommandBytes(DroneCmd.NAV_IDLE, []));
+    lastBleOpcodeRef.current = DroneCmd.NAV_IDLE;
   }, []);
 
   const tick = useCallback(() => {
@@ -131,7 +114,6 @@ export function useFollowMockController(
     const cfg = cfgRef.current;
     const nowMs = nowRef.current();
 
-    // Watchdog: if snapshot looks stale, force IDLE+zeros via the evaluator.
     const fresh =
       snap.generatedAtMs > 0 ? nowMs - snap.generatedAtMs <= staleSnapshotMs : true;
 
@@ -140,10 +122,9 @@ export function useFollowMockController(
       cfg
     );
 
-    sendNavIntent(out.nextState, snap.yawErrorDeg);
+    sendBleFollowPhaseIfChanged(out.nextState, snap.yawErrorDeg);
 
     stateRef.current = out.nextState;
-    sendMotorsDisplayed(out.motorThrottles);
 
     setView({
       state: out.nextState,
@@ -151,13 +132,12 @@ export function useFollowMockController(
       throttles: out.motorThrottles,
       reason: fresh ? out.reason : "watchdog: snapshot stale",
     });
-  }, [sendMotorsDisplayed, sendNavIntent, staleSnapshotMs]);
+  }, [sendBleFollowPhaseIfChanged, staleSnapshotMs]);
 
   const start = useCallback(() => {
     if (intervalRef.current != null) return;
-    dispatchFollowPacket(commsRef.current, buildCommandBytes({ type: "FOLLOW_TOGGLE" }));
     stateRef.current = "IDLE";
-    lastThrottlesRef.current = ZERO_THROTTLES;
+    lastBleOpcodeRef.current = null;
     const periodMs = Math.max(10, Math.round(1000 / Math.max(1, tickHz)));
     intervalRef.current = setInterval(tick, periodMs);
     setView({
@@ -174,40 +154,34 @@ export function useFollowMockController(
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    if (hadSession) {
-      dispatchFollowPacket(commsRef.current, buildCommandBytes({ type: "FOLLOW_TOGGLE" }));
-    }
     const wasActive = stateRef.current !== "IDLE";
-    // Mirror full zero quartet on BLE / transport.
-    sendMotorsDisplayed(ZERO_THROTTLES);
-    if (wasActive) {
-      sendNavIntent("IDLE", null);
+    if (hadSession && wasActive) {
+      sendBleNavIdleAlways();
     }
     stateRef.current = "IDLE";
+    lastBleOpcodeRef.current = null;
     setView({
       state: "IDLE",
       running: false,
       throttles: ZERO_THROTTLES,
       reason: "stopped",
     });
-  }, [sendMotorsDisplayed, sendNavIntent]);
+  }, [sendBleNavIdleAlways]);
 
-  // Unmount: clear interval; pair FOLLOW_TOGGLE like stop(); zero motors and NAV_IDLE.
   useEffect(() => {
     return () => {
       const hadSession = intervalRef.current != null;
       if (hadSession) {
         clearInterval(intervalRef.current!);
         intervalRef.current = null;
-        dispatchFollowPacket(commsRef.current, buildCommandBytes({ type: "FOLLOW_TOGGLE" }));
       }
       const wasActive = stateRef.current !== "IDLE";
-      sendMotorsDisplayed(ZERO_THROTTLES);
-      if (wasActive) {
-        sendNavIntent("IDLE", null);
+      if (hadSession && wasActive) {
+        sendBleNavIdleAlways();
       }
+      lastBleOpcodeRef.current = null;
     };
-  }, [sendMotorsDisplayed, sendNavIntent]);
+  }, [sendBleNavIdleAlways]);
 
   return {
     state: view.state,
