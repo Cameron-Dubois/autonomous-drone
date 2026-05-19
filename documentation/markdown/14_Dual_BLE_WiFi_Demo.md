@@ -5,9 +5,10 @@ Use the unified **`wifi_gps_softap`** firmware on one ESP32-C3: SoftAP + HTTPS/W
 ## Recommended order (Android)
 
 1. **Flash** `wifi_gps_softap` (`idf.py -p PORT flash monitor`).
-2. In the app **Connect** tab, **join the drone Wi‑Fi** first, then tap through until **WSS** shows on Home (map / drone GPS from Wi‑Fi unchanged).
-3. **Scan BLE** and connect to **DroneBLE**. The hybrid layer attaches GATT notifications; GPS JSON still prefers the **WebSocket** `link` state.
-4. **Control / ESTOP**: with BLE connected, command bytes go over **BLE** first; if BLE is disconnected, they fall back to the WebSocket (firmware may still ignore WS binary).
+2. In the app **Connect** tab, **join the drone Wi‑Fi** with the **factory password** (menuconfig default). On first connect the app auto-provisions a unique password, shows it once, and reconnects — save that password if prompted.
+3. Confirm **WSS** / telemetry on Home (map / drone GPS from Wi‑Fi unchanged).
+4. **Scan BLE** and connect to **DroneBLE**. The hybrid layer attaches GATT notifications; GPS JSON still prefers the **WebSocket** `link` state.
+5. **Control / ESTOP**: with BLE connected, command bytes go over **BLE** first; if BLE is disconnected, they fall back to the WebSocket (firmware may still ignore WS binary).
 
 ## Expected behavior
 
