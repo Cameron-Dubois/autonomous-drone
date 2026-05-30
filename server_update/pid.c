@@ -1,17 +1,3 @@
-/*
- * pid.c
- *
- * Two design choices worth flagging:
- *
- * 1. Derivative-on-measurement.  Computing D from the error means a
- *    step in the setpoint kicks the output ("derivative kick").  We
- *    measure D from the gyro instead and negate it, which gives the
- *    same damping without the kick.
- *
- * 2. Conditional integration.  When the output is saturated and the
- *    integrator would push it further the same direction, we skip the
- *    integration step.  Cheap, well-behaved anti-windup.
- */
 #include "pid.h"
 
 static inline float clampf(float v, float lo, float hi)
@@ -48,14 +34,11 @@ float pid_step(pid_t *p, float setpoint, float measurement, float dt)
     p->prev_meas = measurement;
     p->has_prev  = 1;
 
-    /* Tentative output before deciding whether to integrate. */
     float p_term = p->kp * err;
     float i_term = p->ki * p->i_acc;
     float u_unsat = p_term + i_term + d_term;
     float u_sat   = clampf(u_unsat, -p->out_limit, p->out_limit);
 
-    /* Conditional integration: if output is saturated and the error
-     * would push it further into saturation, freeze the integrator. */
     int saturated_high = (u_unsat >  p->out_limit) && (err > 0.0f);
     int saturated_low  = (u_unsat < -p->out_limit) && (err < 0.0f);
     if (!saturated_high && !saturated_low) {
