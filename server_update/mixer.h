@@ -1,12 +1,3 @@
-/*
- * mixer.h - X-quad motor mixer.
- *
- * Inputs are normalized:
- *   throttle in [0, 1]
- *   roll/pitch/yaw commands in roughly [-1, +1]
- *
- * Output is four motor commands in [0, 1].
- */
 #ifndef MIXER_H_
 #define MIXER_H_
 
