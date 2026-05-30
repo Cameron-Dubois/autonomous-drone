@@ -7,7 +7,6 @@
  *   2. IMU next: if this fails we abort and let the watchdog reboot.
  *   3. WiFi last: getting the link up before the IMU would mean a
  *      pilot could send packets while the controller is uninitialized.
- *   4. Flight task spawn -- it's responsible for everything from here.
  */
 #include "esp_err.h"
 #include "esp_log.h"
