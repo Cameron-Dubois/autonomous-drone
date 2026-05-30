@@ -1,13 +1,3 @@
-/*
- * app_main.c - boot orchestration only.
- *
- * Order matters:
- *   1. Motors first, with disarmed state, so a glitchy boot can't
- *      spin a prop while the rest of the system warms up.
- *   2. IMU next: if this fails we abort and let the watchdog reboot.
- *   3. WiFi last: getting the link up before the IMU would mean a
- *      pilot could send packets while the controller is uninitialized.
- */
 #include "esp_err.h"
 #include "esp_log.h"
 
