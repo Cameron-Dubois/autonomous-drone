@@ -1,14 +1,3 @@
-/*
- * flight_task.c
- *
- * The hot path: read IMU, update attitude, run cascaded PID, mix, write
- * motors.  Everything inside this task is allocation-free and avoids
- * blocking calls beyond a fixed I2C transaction.
- *
- * Loop pacing: vTaskDelayUntil locks us to LOOP_PERIOD_US.  If we ever
- * miss a deadline (loop_us > LOOP_PERIOD_US * 1.5), we log a warning
- * but keep flying -- silently slowing down is worse than admitting it.
- */
 #include "flight_task.h"
 
 #include <math.h>
@@ -38,14 +27,10 @@ static pid_t s_pid_pitch_angle;
 
 static void init_pids(void)
 {
-    /* Output limits in [-1, +1]: we add these directly to motor commands.
-     * Integrator limit at 0.5 prevents long-term wind-up dominating output. */
     pid_init(&s_pid_roll_rate,  PID_ROLL_RATE_KP,  PID_ROLL_RATE_KI,  PID_ROLL_RATE_KD, 0.5f, 1.0f);
     pid_init(&s_pid_pitch_rate, PID_PITCH_RATE_KP, PID_PITCH_RATE_KI, PID_PITCH_RATE_KD, 0.5f, 1.0f);
     pid_init(&s_pid_yaw_rate,   PID_YAW_RATE_KP,   PID_YAW_RATE_KI,   PID_YAW_RATE_KD,   0.5f, 1.0f);
 
-    /* Outer angle loop is P-only, output is a rate setpoint.  Limit it
-     * so a stick-to-the-stop request can't demand a >MAX_RATE_DPS spin. */
     pid_init(&s_pid_roll_angle,  PID_ROLL_ANGLE_KP,  0.0f, 0.0f, 0.0f, MAX_RATE_DPS);
     pid_init(&s_pid_pitch_angle, PID_PITCH_ANGLE_KP, 0.0f, 0.0f, 0.0f, MAX_RATE_DPS);
 }
@@ -54,15 +39,11 @@ static void task_main(void *arg)
 {
     (void)arg;
 
-    /* Subscribe this task to the watchdog.  We feed it every loop. */
     esp_task_wdt_add(NULL);
 
     init_pids();
     attitude_reset();
 
-    /* On boot, calibrate the gyro.  The drone must be sitting still on
-     * the bench for ~1 second.  If you'd rather skip this, comment it
-     * out and run it from a ground-station command instead. */
     imu_calibrate_gyro_bias();
 
     TickType_t next_wake = xTaskGetTickCount();
@@ -96,8 +77,6 @@ static void task_main(void *arg)
         bool armed   = link_ok && in.armed && in.throttle >= 0.0f;
         motors_arm(armed);
 
-        /* If we just disarmed, reset the integrators so we don't kick
-         * the drone the next time it's armed. */
         if (!armed) {
             pid_reset(&s_pid_roll_rate);
             pid_reset(&s_pid_pitch_rate);
@@ -132,9 +111,6 @@ static void task_main(void *arg)
                                      in.throttle, armed, loop_us);
         }
 
-        /* Spot stalls: a single overrun is normal jitter, but a string
-         * of them means the loop is starved.  Lower log level on the
-         * bench once you trust it. */
         if (loop_us > (uint32_t)(LOOP_PERIOD_US * 1.5)) {
             ESP_LOGW(TAG, "loop overrun: %lu us", (unsigned long)loop_us);
         }
@@ -145,9 +121,6 @@ static void task_main(void *arg)
 
 esp_err_t flight_task_start(void)
 {
-    /* Priority just below the WiFi task (which is 23 by default in
-     * ESP-IDF).  We don't need to outrank WiFi -- we just need to
-     * preempt anything in user space. */
     BaseType_t ok = xTaskCreate(task_main, "flight",
                                 4096, NULL, 22, NULL);
     if (ok != pdPASS) {
