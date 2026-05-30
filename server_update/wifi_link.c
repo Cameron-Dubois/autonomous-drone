@@ -1,15 +1,3 @@
-/*
- * wifi_link.c
- *
- * SoftAP + UDP control receiver.  Runs in its own task so the flight
- * loop never blocks on lwIP.  The flight loop reads a snapshot via
- * wifi_link_get_latest() with a tiny mutex window.
- *
- * Why SoftAP and not station?  In the field there's nothing to associate
- * with, and adding an external AP doubles the failure modes.  The
- * downside is range -- if you ever need >50 m, switch to station mode
- * and an outdoor AP, or use ESP-NOW (lower-level, no IP stack).
- */
 #include "wifi_link.h"
 
 #include <string.h>
@@ -125,8 +113,6 @@ static void rx_task(void *arg)
             s_have_peer = true;
             xSemaphoreGive(s_lock);
         }
-        /* Anything else (truncated, wrong magic) is silently dropped --
-         * we never want to chatty-log on the hot path. */
     }
 }
 
@@ -176,11 +162,8 @@ esp_err_t wifi_link_init(void)
     err = esp_wifi_set_config(WIFI_IF_AP, &wc);     if (err != ESP_OK) return err;
     err = esp_wifi_start();                          if (err != ESP_OK) return err;
 
-    /* Disable WiFi power save -- we want consistent, low-jitter packet
-     * delivery, not battery savings. */
     esp_wifi_set_ps(WIFI_PS_NONE);
 
-    /* Stack: 4 KB is plenty for a UDP receiver doing no allocation. */
     BaseType_t ok = xTaskCreate(rx_task, "wifi_rx", 4096, NULL, 5, NULL);
     return ok == pdPASS ? ESP_OK : ESP_FAIL;
 }
