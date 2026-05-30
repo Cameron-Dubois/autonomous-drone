@@ -1,9 +1,3 @@
-/*
- * pid.h - small floating-point PID with anti-windup and
- * derivative-on-measurement.
- *
- * Allocation-free; one struct per controller, you own the storage.
- */
 #ifndef PID_H_
 #define PID_H_
 
