@@ -1,35 +1,35 @@
 ### GPS and Telemetry
 
-This section documents the telemetry data schema and how GPS information is collected and displayed in the system. Telemetry is the live state of the drone as seen by the mobile app; GPS data from both the phone and the drone can be shown together on the map view.
+Telemetry is the live aircraft state as presented in the mobile app. For follow-me, the app combines **phone GNSS** (where the user is) with **drone GNSS and heading** (where the aircraft is and which way it faces). This section defines the data model and transports for the **finished product**; the prototype app uses the same schema.
 
 ---
 
 #### Telemetry data schema
 
-The mobile app maintains a single `Telemetry` object that is updated whenever a BLE notification arrives from the drone. The type is defined in `mobile/src/protocol/types.ts`.
+The app holds one `Telemetry` object (see mobile `protocol/types.ts`). Fields are merged from Wi‑Fi and BLE updates.
 
 | Field | Type | Source | Description |
 |-------|------|--------|-------------|
-| `link` | `"DISCONNECTED" \| "CONNECTING" \| "SECURE_LINK"` | App | BLE connection state |
+| `link` | `"DISCONNECTED" \| "CONNECTING" \| "SECURE_LINK"` | App (from **Wi‑Fi WebSocket**) | Local secure link to the drone AP — not overwritten by BLE |
 | `batteryPct` | `number` | Drone | Battery level, 0–100 % |
-| `batteryMins` | `number` | App (heuristic) | Estimated minutes remaining (derived from `batteryPct` when not provided by firmware) |
+| `batteryMins` | `number` | App (heuristic) | Estimated minutes remaining when firmware does not provide it |
 | `speedKmh` | `number` | Drone | Ground speed in km/h |
-| `altM` | `number` | Drone | Altitude in metres |
-| `rssiBars` | `0–4` | App | BLE signal strength bars derived from RSSI dBm |
-| `followMode` | `boolean` | Drone | Whether autonomous follow mode is active |
-| `droneGpsValid` | `boolean` | Drone | `true` when the on‑drone GNSS module has a valid fix |
-| `droneLat` | `number \| null` | Drone | Drone latitude, WGS84 decimal degrees; `null` when no fix |
-| `droneLon` | `number \| null` | Drone | Drone longitude, WGS84 decimal degrees; `null` when no fix |
-| `droneGpsFixQuality` | `number` | Drone | NMEA GGA fix quality (0 = invalid, 1 = GPS, 2 = DGPS, …) |
-| `droneGpsSatellites` | `number` | Drone | Number of satellites in use; 0 when unknown |
-| `droneGpsHdop` | `number \| null` | Drone | Horizontal dilution of precision; `null` when unknown |
-| `droneHeadingDeg` | `number \| null` | Drone | Compass heading in degrees (magnetometer); `null` when the compass is not ready or failed init |
+| `altM` | `number` | Drone | Altitude in metres (baro/GNSS fusion on product FC) |
+| `rssiBars` | `0–4` | App | Link quality bars (often from BLE RSSI when present) |
+| `followMode` | `boolean` | Drone / app | Autonomous follow active |
+| `droneGpsValid` | `boolean` | Drone | `true` when onboard GNSS has a valid fix |
+| `droneLat` | `number \| null` | Drone | WGS84 latitude; `null` when no fix |
+| `droneLon` | `number \| null` | Drone | WGS84 longitude; `null` when no fix |
+| `droneGpsFixQuality` | `number` | Drone | Fix quality (0 = invalid, 1 = GPS, 2 = DGPS, …) |
+| `droneGpsSatellites` | `number` | Drone | Satellites in use |
+| `droneGpsHdop` | `number \| null` | Drone | Horizontal dilution of precision |
+| `droneHeadingDeg` | `number \| null` | Drone | Compass heading, degrees true; `null` if unavailable |
 
 ---
 
 #### Telemetry wire formats
 
-The ESP32 encodes telemetry as a UTF‑8 string, Base64‑encodes it, and sends it as a BLE GATT notification. The app decodes Base64, then parses the resulting string using one of two formats.
+The flight controller emits telemetry as a **UTF-8 string**. Over BLE it is **Base64-wrapped** in GATT notifications; over Wi‑Fi it is sent as **plain JSON text** (HTTPS snapshot or WebSocket frames). The app uses one parser for both.
 
 ##### JSON format
 
@@ -50,7 +50,7 @@ The ESP32 encodes telemetry as a UTF‑8 string, Base64‑encodes it, and sends 
 }
 ```
 
-Accepted GPS field aliases: `droneLat` / `dlat`, `droneLon` / `dlon`, `droneGpsValid` / `gpsValid` / `gpsOk`, `droneGpsFixQuality` / `gpsFix` / `fix`, `droneGpsSatellites` / `gpsSats` / `sats`, `droneGpsHdop` / `hdop`.
+Accepted GPS aliases: `droneLat` / `dlat`, `droneLon` / `dlon`, `droneGpsValid` / `gpsValid` / `gpsOk`, `droneGpsFixQuality` / `gpsFix` / `fix`, `droneGpsSatellites` / `gpsSats` / `sats`, `droneGpsHdop` / `hdop`.
 
 ##### TEL key=value format
 
@@ -60,113 +60,81 @@ TEL alt=12 batt=84 spd=0 rssi=-65 follow=0 dlat=36.9741 dlon=-122.0308 gps=1 fix
 
 | Key | Maps to | Notes |
 |-----|---------|-------|
-| `alt` | `altM` | Rounded to integer metres |
+| `alt` | `altM` | Metres |
 | `batt` | `batteryPct` | 0–100 |
 | `spd` | `speedKmh` | |
-| `rssi` | `rssiBars` | Converted: ≥−50 → 4 bars, ≥−60 → 3, ≥−70 → 2, ≥−80 → 1, else 0 |
+| `rssi` | `rssiBars` | dBm → 0–4 bars |
 | `follow` | `followMode` | `1` / `true` = active |
-| `dlat` | `droneLat` | Decimal degrees |
-| `dlon` | `droneLon` | Decimal degrees |
-| `gps` / `gpsok` / `gps_ok` / `dv` | `droneGpsValid` | `1` / `true` / `yes` = valid |
-| `fix` / `fixq` | `droneGpsFixQuality` | Non-negative integer |
-| `sats` | `droneGpsSatellites` | Non-negative integer |
-| `hdop` | `droneGpsHdop` | Float |
+| `dlat` / `dlon` | `droneLat` / `droneLon` | Decimal degrees |
+| `gps` / `gpsok` / `gps_ok` / `dv` | `droneGpsValid` | |
+| `fix` / `fixq` | `droneGpsFixQuality` | |
+| `sats` | `droneGpsSatellites` | |
+| `hdop` | `droneGpsHdop` | |
 
-Unknown keys are silently ignored, so future firmware can add fields without breaking older app builds.
+Unknown keys are ignored so older app builds stay compatible.
 
 ---
 
-#### Wi‑Fi telemetry transport (HTTPS / WSS)
+#### Wi‑Fi telemetry transport (primary in dual-link mode)
 
-When **`wifi_gps_softap`** is running, GPS-related fields can be read without BLE by joining the drone soft‑AP and using TLS on **port 443** only:
+After joining the drone’s soft access point, the app uses **TLS on port 443**:
 
 | Endpoint | Protocol | Behaviour |
 |----------|----------|-----------|
-| `GET https://192.168.4.1/gps` | HTTPS | One-shot JSON snapshot; polls UART/GPS and compass on each request |
-| `wss://192.168.4.1/ws` | Secure WebSocket | Same JSON as plain text frames, pushed about every **200 ms** |
+| `GET https://192.168.4.1/gps` | HTTPS | One-shot JSON snapshot |
+| `wss://192.168.4.1:443/ws` | Secure WebSocket | Same JSON pushed ~5 Hz |
+| `GET https://192.168.4.1/` | HTTPS | Health check |
 
-Default gateway `192.168.4.1` matches ESP‑IDF soft‑AP. See [Section 11 — Communication Protocol](11_Communication_Protocol.md) for TLS details and WebSocket limits.
+Default gateway **`192.168.4.1`** is the AP address baked into product firmware. See [Section 11 — Communication Protocol](11_Communication_Protocol.md) for TLS trust and provisioning.
 
 **Semantics**
 
-- When there is **no GNSS fix**, `droneLat`, `droneLon`, and `droneGpsHdop` are JSON **`null`** (not `0`). `droneGpsValid` is `false`.
-- When the **compass** is not providing a heading, `droneHeadingDeg` is **`null`**.
-- `droneGpsFixQuality` and `droneGpsSatellites` still reflect the last parsed NMEA values when `droneGpsValid` is `false`.
+- No GNSS fix: `droneLat`, `droneLon`, `droneGpsHdop` are JSON **`null`**; `droneGpsValid` is `false`.
+- No compass heading: `droneHeadingDeg` is **`null`**.
 
-**Canonical payloads** (as emitted by `wifi_gps_softap/main/softap_gps_main.c`):
+---
 
-Fix valid:
+#### BLE telemetry (secondary / merge)
 
-```json
-{
-  "droneGpsValid": true,
-  "droneLat": 36.9741000,
-  "droneLon": -122.0308000,
-  "droneGpsFixQuality": 1,
-  "droneGpsSatellites": 8,
-  "droneGpsHdop": 1.2,
-  "droneHeadingDeg": 182.5
-}
-```
-
-No fix (example values for fix quality / satellites may vary):
-
-```json
-{
-  "droneGpsValid": false,
-  "droneLat": null,
-  "droneLon": null,
-  "droneGpsFixQuality": 0,
-  "droneGpsSatellites": 0,
-  "droneGpsHdop": null,
-  "droneHeadingDeg": null
-}
-```
+BLE notifications may duplicate GPS and status fields. In **hybrid mode** the app merges BLE patches into `Telemetry` but keeps **`link` from the WebSocket** so the UI reflects Wi‑Fi association state.
 
 ---
 
 #### Phone location (GNSS)
 
-The mobile app collects the handset's own GPS position using the `usePhoneLocation` hook (`mobile/src/hooks/usePhoneLocation.ts`). This is displayed next to the drone's position on the map view but is **not** transmitted to the firmware.
+The app reads handset position via foreground GNSS (`usePhoneLocation` and the nav module’s phone fix source). Phone coordinates are **shown and used for follow geometry**; they are **not** required to be uploaded to the drone for the prototype follow-mock (product FC may later consume phone position over the link if needed).
 
 | Behaviour | Detail |
 |-----------|--------|
-| Permission | Requests "when in use" foreground permission once on mount |
-| Update rate | Default: every 3 seconds or 5 metres (configurable via hook options) |
-| Accuracy | `Location.Accuracy.Balanced` |
+| Permission | Foreground “when in use” |
+| Update rate | Default ~3 s or 5 m |
 | Fields | `lat`, `lon`, `accuracyM`, `timestampMs` |
-| Errors | Permission denied, location services off, or hardware error are surfaced in `error` field |
 
-The hook exposes a `retryPermission()` callback that the UI can call to re-prompt the user after a denial.
+---
+
+#### Follow-to-phone navigation (app layer)
+
+The `nav` module computes a **NavigationSnapshot** from phone and drone fixes:
+
+- Haversine **distance** and **bearing** (drone → phone)
+- **Intent**: awaiting fixes, weak phone GPS, proceed toward phone, arrived, hold, etc.
+
+A **follow controller** maps intents to `NAV_*` flight commands over BLE (see Section 11). Production flight software on the PCB executes those commands with onboard limits; the app does not replace the FC failsafe.
 
 ---
 
 #### GPS data flow summary
 
 ```
-Drone GNSS module
-      │  NMEA / parsed fix
+Onboard GNSS + compass
+      │  parsed fix / heading
       ▼
-drone_ble firmware  ──encodes──►  TEL dlat=… dlon=… gps=1 …
-                                        │  (Base64 over BLE notification)
-                                        ▼
-                              parseBleTelemetryPayload()
-                                        │
-                                        ▼
-                                  Telemetry object
-                                  (droneLat, droneLon, …)
+Flight controller  ──►  JSON or TEL telemetry
+      │                      │
+      ├──── WSS (~5 Hz) ──────┼──►  App: parse → Telemetry
+      └──── BLE notify ───────┘         (merge; link from WSS)
 
-Optional: wifi_gps_softap  ──HTTPS/WSS──►  JSON /gps or /ws text frames
-                                        │
-                                        ▼
-                              parseBleTelemetryPayload()  (Wi‑Fi comms adapter)
-
-Phone GNSS hardware
-      │  expo-location watchPositionAsync
+Phone GNSS
       ▼
-usePhoneLocation hook
-      │
-      ▼
-PhoneLocationSnapshot
-(lat, lon, accuracyM)   ──────────────►  Map view (both positions rendered)
+Navigation + map UI  ──►  Follow intents  ──►  NAV_* commands (BLE)
 ```

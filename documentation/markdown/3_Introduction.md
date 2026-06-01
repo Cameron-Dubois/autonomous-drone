@@ -12,7 +12,7 @@ The goal of this project is to design an autonomous drone that follows a user wi
 
 **Design Objective**
 
-The objective of this project is to create a pilotless autonomous drone that reduces manual contorl of piloting by 90%.
+The objective of this project is to create a pilotless autonomous drone that reduces manual control of piloting by 90%.
 
 **Personas**
 

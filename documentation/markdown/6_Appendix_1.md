@@ -76,7 +76,7 @@ Several important design choices were clarified during the early stages of the p
 
 **Decision**
 
-Initially we chose BLE only because it was simple, low power, and enough for basic control. Through brainstorming and early research we concluded that BLE would not be enough for video streaming. For future versions we intend to move toward a hybrid BLE and WiFi approach so that BLE can handle control while WiFi handles higher bandwidth video when needed.
+We chose BLE first for low-latency control, then added Wi‑Fi when bandwidth needs (telemetry at ~5 Hz, GPS JSON, and camera streaming) exceeded BLE capacity. The **finished product uses a hybrid link**: BLE for commands and keep-alive; Wi‑Fi (TLS) for telemetry and video. The mobile app implements this split by default (hybrid comms layer).
 
 #### 2. Camera inclusion
 
@@ -105,4 +105,4 @@ We considered leaving the camera out to reduce complexity, cost, and data rate. 
 
 **Decision**
 
-We have not finalised a tracking approach yet. Brainstorming focused on two main options, computer vision and GPS with magnetometer. At this stage we expect to start with manual framing and simple behaviours, then introduce tracking using either computer vision, GPS with magnetometer, or a combination once we understand the hardware and software constraints better.
+The **first product release** targets **outdoor follow-me using phone GNSS + drone GNSS and magnetometer**: the app computes bearing and distance; the flight controller executes `NAV_*` motion commands under onboard limits. Computer vision may augment or replace GPS tracking in a later revision. Manual framing and the Control tab remain for setup, recovery, and regulatory testing.

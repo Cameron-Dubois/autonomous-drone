@@ -1,27 +1,61 @@
-# Dual BLE + Wi‑Fi demo (TA checklist)
+# Dual BLE + Wi‑Fi operation
 
-Use the unified **`wifi_gps_softap`** firmware on one ESP32-C3: SoftAP + HTTPS/WSS **and** NimBLE peripheral (`DroneBLE`).
+This section describes how the **finished product** is intended to be used day-to-day, and how to run a **bench demo** with the current prototype app and firmware. Product behaviour is dual-link; single-link modes exist for debugging only.
 
-## Recommended order (Android)
+---
 
-1. **Flash** `wifi_gps_softap` (`idf.py -p PORT flash monitor`).
-2. In the app **Connect** tab, **join the drone Wi‑Fi** with the **factory password** (menuconfig default). On first connect the app auto-provisions a unique password, shows it once, and reconnects — save that password if prompted.
-3. Confirm **WSS** / telemetry on Home (map / drone GPS from Wi‑Fi unchanged).
-4. **Scan BLE** and connect to **DroneBLE**. The hybrid layer attaches GATT notifications; GPS JSON still prefers the **WebSocket** `link` state.
-5. **Control / ESTOP**: with BLE connected, command bytes go over **BLE** first; if BLE is disconnected, they fall back to the WebSocket (firmware may still ignore WS binary).
+## Intended product behaviour
 
-## Expected behavior
+| Concern | Channel |
+|---------|---------|
+| Live telemetry, GPS, map, `link` status | **Wi‑Fi** — `wss://192.168.4.1:443/ws` (and `GET /gps` if needed) |
+| Flight commands, follow `NAV_*` intents, heartbeat | **BLE** — GATT to `DroneBLE` |
+| Video (when enabled) | **Wi‑Fi** — `https://192.168.4.1/stream` |
 
-| Condition | Map / `droneLat` | `tel.link` (Wi‑Fi) | Commands |
-|-----------|------------------|--------------------|----------|
-| Wi‑Fi only | Yes (WSS or `/gps` poll) | CONNECTING / SECURE_LINK / DISCONNECTED from WS | WebSocket binary |
-| Wi‑Fi + BLE | Same GPS source; BLE can duplicate GPS notify | Still from WebSocket only | BLE when connected |
+The phone joins the drone’s access point **without internet**. BLE remains available for low-latency control even when telemetry is already flowing over Wi‑Fi.
 
-## Rollback (Wi‑Fi-only app path)
+---
 
-In `mobile/src/comms/hybrid-comms.ts`, set `USE_HYBRID_DUAL_LINK` to `false` so `CommsProvider` uses plain `createWifiComms()`.
+## Recommended operator flow (Android)
 
-## Firmware notes
+1. **Power on** the drone; wait for AP and BLE advertise.
+2. **Connect** tab — join drone Wi‑Fi (factory password first time; app may provision a unique password and show it once).
+3. **Home** — confirm link live and drone GPS when outdoors.
+4. **Connect** tab — scan and connect **DroneBLE**.
+5. **Control** or **Home (follow)** — commands go over BLE; telemetry continues on WSS.
 
-- **Partition table**: `wifi_gps_softap/partitions.csv` enlarges the factory app slot (~2 MB flash image) so BT + Wi‑Fi + mbedTLS fit on a **2 MB** flash ESP32-C3.
-- **Motors** on this unified C3 build use **`motor_stub.c`** (no PWM); commands are still accepted over BLE for demos and logs.
+On **iOS**, join the AP in Settings before step 3; BLE steps are the same.
+
+---
+
+## Expected UI behaviour
+
+| Condition | Map / drone GPS | `tel.link` | Commands |
+|-----------|-----------------|------------|----------|
+| Wi‑Fi only | Yes (WSS or `/gps`) | From WebSocket | WebSocket fallback |
+| Wi‑Fi + BLE | Yes; BLE may duplicate GPS fields | Still from WebSocket | **BLE when connected** |
+
+---
+
+## Debug: Wi‑Fi-only mode
+
+In the app, set `USE_HYBRID_DUAL_LINK` to `false` in `hybrid-comms.ts` so `CommsProvider` uses plain `createWifiComms()` — commands and telemetry both on WSS. Use only for protocol testing; product shipping config keeps hybrid enabled.
+
+---
+
+## Prototype vs product (motors and follow)
+
+| Feature | Product intent | Prototype status |
+|---------|----------------|------------------|
+| `NAV_*` follow | FC executes with limits | App sends opcodes; bench FC may log only |
+| Takeoff | Standard FC sequence | App may use demo takeoff opcode on bench |
+| Per-motor BLE throttle | Maintenance / cal mode | May be log-only on unified bench image |
+| Video | MJPEG on `/stream` | Placeholder stream acceptable |
+
+These gaps do not change the protocol documented in Section 11; they define remaining FC integration work on the custom PCB.
+
+---
+
+## Manufacturing note
+
+Production units must ship with a **unique AP password** (provisioned once), **embedded TLS identity** trusted by the shipped app build, and BLE pairing consistent with the UUIDs in Section 11.

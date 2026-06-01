@@ -1,6 +1,6 @@
 ### Mobile App Architecture
 
-The mobile app is a **React Native (Expo)** application with four tabs. This section describes the internal structure: how screens, contexts, comms adapters, and state are organised and how they depend on each other.
+The mobile app is a **React Native (Expo)** application with four tabs. It is the operator console for the finished product: connect to the drone, view fused telemetry, start follow-me, manual override, and video. This section describes structure as **product architecture**; the repository implementation matches this layout.
 
 ---
 
@@ -8,26 +8,24 @@ The mobile app is a **React Native (Expo)** application with four tabs. This sec
 
 ```
 Screens  (app/(tabs)/*)
-    │   read telemetry, call comms.send()
+    │   telemetry via useComms(); commands via comms.send()
     ▼
-CommsContext   (src/context/CommsContext.tsx)
-    │   provides a single DroneComms instance to the whole app
+CommsProvider  (src/context/CommsContext.tsx)
+    │   hybrid DroneComms (default) or Wi‑Fi-only if configured
     ▼
-DroneComms interface   (src/comms/comms.ts)
-    │   connect / disconnect / send / subscribeTelemetry
-    ├──────────────────────────────────────┐
-    ▼                                      ▼
-Wi‑Fi telemetry adapter (wired in       BLE adapter
-CommsProvider today)                     (src/comms/ble-comms.ts)
-(src/comms/wifi-comms.ts)                    │
-    │                                      ▼
-    ▼                              RealDroneBleClient
-WebSocket (wss://…)              (src/comms/BLE/ble.real.ts)
-parseBleTelemetryPayload             │
-on text frames                         ▼
-    │                              ESP32 drone_ble (BLE GATT)
-    ▼
-wifi_gps_softap (HTTPS / WSS :443)
+DroneComms  (src/comms/comms.ts)
+    │
+    ├─ createHybridComms(createWifiComms())   ← default (USE_HYBRID_DUAL_LINK)
+    │       │
+    │       ├─ Wi‑Fi inner: WSS telemetry, link state, send fallback
+    │       └─ BLE merge: notify → parse → merge (strip link from BLE patches)
+    │
+    ├─ createWifiComms()   — WSS + optional /gps poll
+    └─ createBleComms()    — BLE-only (legacy / test)
+
+Protocol  (src/protocol/)  — buildCommandBytes, parseBleTelemetryPayload
+Nav       (src/nav/)       — follow-to-phone snapshot (phone + drone GNSS)
+Autonomy  (src/autonomy/) — follow-mock: snapshot → NAV_* over BLE
 ```
 
 ---
@@ -36,42 +34,53 @@ wifi_gps_softap (HTTPS / WSS :443)
 
 **Home (`app/(tabs)/index.tsx`)**
 
-Subscribes to telemetry via `useComms().subscribeTelemetry()` and displays:
-
-- Link status (`link` field: connecting / connected / disconnected) and RSSI bars when provided by BLE telemetry
-- Battery percentage and estimated minutes remaining
-- Altitude and speed
-- Follow mode toggle indicator
-- Phone GPS position (via `usePhoneLocation`)
-- Drone GPS position when a fix is valid
+- Subscribes to `Telemetry` via `useComms()`.
+- Shows link state, battery, altitude, speed, follow indicator.
+- **Phone GPS** (`usePhoneLocation`) and **drone GPS** when `droneGpsValid`.
+- **Follow-to-phone:** `TelemetryDroneProvider` + `useFollowToPhoneNavigation` → distance, bearing, intent.
+- **Follow mock controller:** when user starts follow, maps navigation phase to `NAV_*` commands (`sendBytesBleOnly` in hybrid mode).
+- On tab focus, calls `comms.connect()` if link was disconnected (after user joined drone Wi‑Fi on Connect).
 
 **Connect (`app/(tabs)/connect/index.tsx`)**
 
-Manages BLE device discovery and Wi‑Fi network selection. Calls `comms.connect(deviceId)` on tap and persists the device ID for automatic reconnection. The Wi‑Fi section uses `RealDroneWifiClient` to scan and join the drone's soft‑AP (Android only; iOS requires manual connection via system Settings).
+- **Wi‑Fi:** scan/join drone AP (Android programmatic; iOS manual), factory password, auto-provision unique password, rotate/reset.
+- **BLE:** scan for `DroneBLE`, connect, persist device ID; calls `syncBleFromExternalConnection()` on hybrid comms.
+- Manual hex/raw BLE command for bench debug.
 
 **Control (`app/(tabs)/control/index.tsx`)**
 
-Manual control interface with:
-
-- **D‑pad** — each direction maps to one or two motor commands. Corner presses target individual motors; edge presses target pairs (e.g. N = motors 2+3 for forward pitch).
-- **Arm button** (D‑pad centre) — sends `ARM` (`0x01`).
-- **Takeoff** — arms the drone then ramps all four motors from 10% to 100% at +5% per second.
-- **Land** — sends `DISARM` and zeroes all motors immediately.
-- **Hover** — sets all motors to 10% throttle.
-- **Motor percentage panel** — live debug readout of each motor's current commanded throttle.
+- D-pad → per-motor or paired `SET_MOTOR` commands.
+- Centre **Arm** → `ARM`.
+- **Takeoff** → `TAKEOFF` (maps to demo/product takeoff opcode).
+- **Land** → `LAND` (maps to ESTOP in current app mapping).
+- **Hover** → `HOVER` (maps to ARM + FC hover policy).
+- Motor percentage readout for bench testing.
 
 **Video (`app/(tabs)/video/index.tsx`)**
 
-Probes the drone's HTTP server (`GET http://192.168.4.1/`) every 2.5 s while the tab is focused. When reachable, loads the MJPEG stream at `/stream` inside a `WebView` using an inline HTML page (`buildMjpegViewerHtml`). Shows a placeholder with connection guidance otherwise.
+- Probes **`https://192.168.4.1/`** while focused.
+- Loads **`https://192.168.4.1/stream`** in a WebView when reachable (MJPEG when FC provides it; placeholder stream acceptable during development).
 
 ---
 
-#### CommsContext
+#### CommsProvider and hybrid behaviour
 
-`CommsProvider` (`src/context/CommsContext.tsx`) creates a single `DroneComms` instance with **`createWifiComms()`** (`useMemo`) and calls **`connect()` on mount** so a WebSocket to the drone AP stays up with automatic reconnect. BLE discovery still exists on the Connect tab, but **telemetry and commands through `useComms()` are Wi‑Fi / WSS** unless you change the provider to use `createBleComms()` again.
+`CommsProvider` constructs **`createHybridComms(createWifiComms())`** when `USE_HYBRID_DUAL_LINK` is true (default).
+
+| Behaviour | Detail |
+|-----------|--------|
+| Auto-connect on app launch | **No** — user joins AP on Connect, then Home/Connect triggers `connect()` |
+| `link` field | Owned by **WebSocket** (CONNECTING → SECURE_LINK → DISCONNECTED) |
+| BLE telemetry | Merged into last telemetry; **`link` stripped** from BLE patches |
+| `send` / `sendBytes` | **BLE first** if GATT connected; else WebSocket binary |
+| `sendBytesBleOnly` | Follow-mock only — no Wi‑Fi fallback |
+| BLE heartbeat | Periodic `HEARTBEAT` while BLE attached (hybrid) |
+| Cleanup | `disconnect()` on provider unmount |
+
+To force Wi‑Fi-only (no BLE command path), set `USE_HYBRID_DUAL_LINK` to `false` in `hybrid-comms.ts`.
 
 ```tsx
-const comms = useComms();   // any screen or component
+const comms = useComms();
 await comms.send({ type: "ARM" });
 ```
 
@@ -79,41 +88,50 @@ await comms.send({ type: "ARM" });
 
 #### DroneComms interface
 
-Defined in `src/comms/comms.ts`. All comms adapters implement this interface, making it easy to swap BLE for Wi‑Fi or a mock without changing any screen code.
-
 | Method | Description |
 |--------|-------------|
-| `connect(deviceId?)` | Connect to a specific device, or the last stored device |
-| `disconnect()` | Tear down the connection |
-| `send(cmd)` | Send a `Command` to the drone |
-| `subscribeTelemetry(cb)` | Register a callback for telemetry updates; returns an unsubscribe function |
-| `sendBytes(bytes)` | Low-level escape hatch: send raw command bytes (used by Wi‑Fi adapter for binary WS frames) |
+| `connect(deviceId?)` | Start WSS (and optional BLE device id from Connect) |
+| `disconnect()` | Tear down sessions |
+| `send(cmd)` | High-level `Command` → binary → transport |
+| `subscribeTelemetry(cb)` | Push `Telemetry` updates |
+| `sendBytes(bytes)` | Raw command buffer |
+
+Hybrid extension: `syncBleFromExternalConnection()`, `notifyBleDisconnected()`, `sendBytesBleOnly()`.
 
 ---
 
-#### BLE adapter (`ble-comms.ts`)
+#### Wi‑Fi adapter (`wifi-comms.ts`)
 
-Wraps `RealDroneBleClient` (or a mock when `EXPO_PUBLIC_BLE_MOCK=1` or when the native lib is unavailable). Responsibilities:
+| Item | Value |
+|------|--------|
+| WSS URL | `wss://192.168.4.1:443/ws` (`buildDroneWsUrl`) |
+| Health | `GET https://192.168.4.1/` |
+| GPS snapshot | `GET https://192.168.4.1/gps` |
+| Parser | Same `parseBleTelemetryPayload` as BLE |
+| Reconnect | Exponential backoff 500 ms → 8 s cap |
 
-- Maintains a listener set for telemetry subscribers.
-- On each BLE notification, calls `parseBleTelemetryPayload()` and merges the result into the last known telemetry object before emitting to all listeners.
-- Tracks connection state changes and emits a synthetic telemetry patch when the link transitions.
+TLS trust for the drone’s embedded cert is handled via platform config (e.g. Android plugin in the app project).
 
 ---
 
-#### Wi‑Fi telemetry adapter (`createWifiComms`)
+#### BLE adapter (`ble-comms.ts` + `BLE/ble.real.ts`)
 
-Implemented in `src/comms/wifi-comms.ts`. It implements the same **`DroneComms`** interface as the BLE adapter so screens can stay unchanged when the context wires this adapter instead of BLE.
+- Scan/connect/subscribe to GATT notifications.
+- Mock when `EXPO_PUBLIC_BLE_MOCK=1` or native module unavailable (Expo Go).
+- Connect tab owns the BLE session; hybrid layer **attaches** to an existing connection for telemetry merge and command send.
 
-| Behaviour | Detail |
-|-----------|--------|
-| Transport | Opens a **WebSocket** to the drone (URL from `options.url` or `buildDroneWsUrl()` in `src/stream/droneStream.ts`) |
-| Inbound | **Text** frames only; each payload is split into lines and passed through **`parseBleTelemetryPayload(...)`** (same parser as BLE) |
-| Outbound | **`send` / `sendBytes`** encode commands as **raw binary** WebSocket frames (`encodeOutgoingCommand` is identity today); exact framing vs `wifi_gps_softap` command handling is **TBD** |
-| Reconnect | Initial delay **500 ms**, doubles each failure up to **8 s** maximum, until `disconnect()` |
-| Link state | Sets telemetry `link` to `CONNECTING` → `SECURE_LINK` on open → `DISCONNECTED` on close (same labels as BLE for UI reuse) |
+---
 
-Binary inbound WS frames are ignored until firmware defines a binary telemetry encoding.
+#### Navigation module (`src/nav/`)
+
+| Piece | Role |
+|-------|------|
+| `navigator.ts` | Pure logic: distance, bearing, `NavigationIntent`, arrival hysteresis |
+| `TelemetryDroneProvider` | Drone fix from `Telemetry` (`droneLat` / `droneLon` / valid flag) |
+| `use-follow-to-phone-navigation.ts` | React hook wiring phone + drone fixes |
+| `firmware-command-mapper.ts` | **Reserved** — product FC mapping from snapshot to setpoints (not yet in app) |
+
+Follow-mock in `src/autonomy/` is the interim mapper: navigation phase → `NAV_*` opcodes. Production should move safety limits to the FC; the mapper remains a thin intent translator.
 
 ---
 
@@ -121,37 +139,31 @@ Binary inbound WS frames are ignored until firmware defines a binary telemetry e
 
 | File | Purpose |
 |------|---------|
-| `types.ts` | `Command` union type, `Telemetry` type, `DroneCmd` opcode constants, `buildCommandBytes()` |
-| `telemetry-parse.ts` | Parses `TEL key=value` and JSON telemetry strings into `Partial<Telemetry>` |
-| `encode.ts` | Low-level encoding helpers |
+| `types.ts` | `Command`, `Telemetry`, `DroneCmd`, `buildCommandBytes`, `navIntentCommandId` |
+| `telemetry-parse.ts` | JSON + `TEL` parsing |
+| `encode.ts` | Encoding helpers |
 
-See [Section 11 — Communication Protocol](11_Communication_Protocol.md) for the command packet format and telemetry wire formats.
-
----
-
-#### Phone location hook (`usePhoneLocation`)
-
-Located at `src/hooks/usePhoneLocation.ts`. Requests foreground location permission on first mount and starts a `watchPositionAsync` subscription (default: every 3 s or 5 m). Returns a `PhoneLocationSnapshot` with `lat`, `lon`, `accuracyM`, `timestampMs`, and `error`. Exposes `retryPermission()` to re‑prompt after a denial.
+See [Section 11 — Communication Protocol](11_Communication_Protocol.md).
 
 ---
 
-#### Wi‑Fi / stream utilities (`src/stream/droneStream.ts`, `src/comms/WiFi/`)
+#### Phone location
 
-`droneStream.ts` exports constants and helpers for the drone's soft‑AP HTTP server:
+- **`usePhoneLocation`** — Home UI display.
+- **`phone-fix-source.ts`** — nav module’s phone watcher (duplicate watcher noted in code; unify in a future revision).
 
-- `DRONE_AP_HOST` = `"192.168.4.1"` — ESP‑IDF default soft‑AP gateway
-- `buildDroneStreamUrl()` → `"http://192.168.4.1/stream"` (together with `DRONE_HTTP_SCHEME` / `DRONE_HTTP_PORT`)
-- `buildDroneWsUrl()` → `"ws://192.168.4.1:81/ws"` (scheme/port/path from module constants)
-- `probeDroneReachable(timeoutMs?)` — fetches `GET /` and returns `true` on 200
-
-`RealDroneWifiClient` (`src/comms/WiFi/wifi.real.ts`) wraps `react-native-wifi-reborn` to scan nearby networks and join the drone's AP programmatically (Android). On iOS it returns an empty scan list; users must connect manually.
-
-> **Known mismatch (`wifi_gps_softap` firmware)**  
-> `wifi_gps_softap/main/softap_gps_main.c` serves **HTTPS and WSS only on port 443**. The module still defines `DRONE_HTTP_SCHEME = "http"`, `DRONE_HTTP_PORT = 80`, `DRONE_WS_SCHEME = "ws"`, `DRONE_WS_PORT = 81`. Update **`DRONE_HTTP_SCHEME`**, **`DRONE_HTTP_PORT`** (443), **`DRONE_WS_SCHEME`**, **`DRONE_WS_PORT`** (443 or omit port when using defaults), and the helpers **`buildDroneRootUrl`**, **`buildDroneStreamUrl`**, **`buildDroneWsUrl`** so they produce `https://192.168.4.1/…` and `wss://192.168.4.1/ws`.  
-> **Self-signed TLS:** production apps must implement explicit trust (e.g. certificate pinning, custom trust manager) or developer-only exceptions — on **iOS**, ATS may block `https://192.168.4.1` unless `NSAppTransportSecurity` allows the exception or pinning is configured; on **Android**, consider Network Security Config or equivalent for user CAs / pinning. See [Section 11 — Communication Protocol](11_Communication_Protocol.md) for cert subject/SAN and verification commands.
+Phone position is **not** uploaded to the drone in the current follow-mock; only `NAV_*` intents are sent.
 
 ---
 
-#### Mock system
+#### Wi‑Fi client utilities
 
-Both `BLE/index.ts` and `WiFi/index.ts` export factory functions that return either the real client or a mock depending on whether the native module loads. This allows the app to run in Expo Go without crashing. Set `EXPO_PUBLIC_BLE_MOCK=0` to force the real stack in a development build.
+- `src/stream/droneStream.ts` — `https` / `wss` URL builders, `probeDroneReachable`.
+- `src/comms/WiFi/wifi.real.ts` — join AP on Android.
+- `src/config/drone-defaults.ts` — default SSID/password env overrides.
+
+---
+
+#### Mock and development builds
+
+Expo Go uses BLE/Wi‑Fi mocks. Real radio requires a **development build** with `EXPO_PUBLIC_BLE_MOCK=0` and platform permissions for BLE, location, and local network.

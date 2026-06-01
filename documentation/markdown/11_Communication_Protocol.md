@@ -1,45 +1,52 @@
 ### Communication Protocol
 
-The system uses two wireless channels: **Bluetooth Low Energy (BLE)** for commands and telemetry, and **Wi‑Fi** for high‑bandwidth data such as camera frames. This section describes both channels, the binary command packet format, and the telemetry encoding.
+The product uses a **dual wireless link** between phone and drone:
+
+| Channel | Role | Rationale |
+|---------|------|-----------|
+| **Wi‑Fi (TLS)** | Telemetry, GPS JSON, future video | Bandwidth; ~5 Hz state + stream headroom |
+| **BLE (GATT)** | Flight commands, optional telemetry merge | Low latency; works when user has joined AP |
+
+The mobile app’s default configuration is **hybrid**: **WebSocket telemetry and `link` state over Wi‑Fi**, **commands prefer BLE** when a GATT session exists, with WebSocket fallback. No internet or cloud service is required.
 
 ---
 
 #### Channel overview
 
-| Channel | Direction | Used for | Latency / bandwidth |
-|---------|-----------|----------|---------------------|
-| BLE GATT | Phone → Drone | Commands | Low latency, ~256 B MTU |
-| BLE GATT notifications | Drone → Phone | Telemetry | Low latency, ~256 B MTU |
-| Wi‑Fi soft‑AP + HTTP | Drone → Phone | Camera frames, video | High bandwidth, not real‑time control |
-
-Control commands and telemetry travel exclusively over BLE. Wi‑Fi is used only when the phone has actively joined the drone's soft‑AP and a high‑bandwidth transfer is needed.
+| Channel | Direction | Used for |
+|---------|-----------|----------|
+| BLE GATT write | Phone → drone | Commands (primary) |
+| BLE GATT notify | Drone → phone | Telemetry (optional duplicate) |
+| HTTPS / WSS on drone AP | Drone → phone | Telemetry, GPS snapshot, health |
+| HTTPS / WSS | Phone → drone | Command fallback (binary frames; FC integration product-dependent) |
+| HTTPS | Phone → drone | Wi‑Fi provisioning, status |
 
 ---
 
 #### BLE GATT layout
 
-One service, one characteristic. The same UUIDs must be used in both the mobile app and the ESP32 firmware.
+One service, one characteristic. Same UUIDs on the custom PCB firmware and in the mobile app.
 
 | Role | UUID |
 |------|------|
 | Service | `59462f12-9543-9999-12c8-58b459a2712d` |
 | Characteristic | `33333333-2222-2222-1111-111100000000` |
 
-The characteristic supports **read**, **write with response**, and **notify/indicate**. The phone writes commands and subscribes to notifications for telemetry.
+Supports **read**, **write with response**, and **notify**. Advertised name: **`DroneBLE`**.
 
-Both commands (phone → drone) and telemetry (drone → phone) are encoded as **Base64 over UTF‑8**. The ESP32 decodes incoming Base64 to get the raw command bytes, and encodes outgoing telemetry strings to Base64 before notifying.
+Commands and BLE telemetry use **Base64 over UTF-8** on the wire: the phone encodes binary command bytes; the FC decodes writes and encodes notification payloads.
 
 ---
 
 #### Command packet format
 
-Commands are binary packets matching the `drone_cmd_t` struct in the ESP32 firmware. Built by `buildCommandBytes()` in `mobile/src/protocol/types.ts`.
+Binary layout (phone builds via `buildCommandBytes()`):
 
 ```
-Byte 0   seq        Rolling sequence number (0–255, wraps)
-Byte 1   cmd_id     Command identifier (see table below)
-Byte 2   payload_len  Number of payload bytes that follow (0 or more)
-Byte 3…  payload    Optional command-specific data
+Byte 0   seq           Rolling sequence (0–255)
+Byte 1   cmd_id        Opcode (table below)
+Byte 2   payload_len   Payload length (0–16 typical)
+Byte 3…  payload       Optional data
 ```
 
 ##### Command IDs
@@ -47,112 +54,97 @@ Byte 3…  payload    Optional command-specific data
 | ID (hex) | Name | Payload | Description |
 |----------|------|---------|-------------|
 | `0x00` | NOP | none | No operation |
-| `0x01` | ARM | none | Arm the drone (enable motors) |
-| `0x02` | DISARM | none | Disarm the drone (disable motors) |
-| `0x03` | ESTOP | none | Emergency stop — immediate motor cut |
-| `0x10` | SET\_MOTOR\_1 | 1 byte throttle (0–255) | Set motor 1 speed |
-| `0x11` | SET\_MOTOR\_2 | 1 byte throttle | Set motor 2 speed |
-| `0x12` | SET\_MOTOR\_3 | 1 byte throttle | Set motor 3 speed |
-| `0x13` | SET\_MOTOR\_4 | 1 byte throttle | Set motor 4 speed |
-| `0x20` | HEARTBEAT | none | Keep-alive ping |
-| `0x30` | ASCEND | none | Increase throttle |
-| `0x31` | DESCEND | none | Decrease throttle |
-| `0x32` | FOLLOW\_TOGGLE | none | Toggle autonomous follow mode |
+| `0x01` | ARM | none | Arm motors / enable control |
+| `0x02` | DISARM | none | Disarm |
+| `0x03` | ESTOP | none | Emergency stop |
+| `0x10`–`0x13` | SET_MOTOR_1–4 | 1 byte throttle 0–255 | Per-motor setpoint (manual / bench) |
+| `0x20` | HEARTBEAT | none | Link keep-alive |
+| `0x30` | ASCEND | none | Increase throttle (mode) |
+| `0x31` | DESCEND | none | Decrease throttle (mode) |
+| `0x32` | FOLLOW_TOGGLE | none | Toggle follow mode |
+| `0x33` | LOST_TOGGLE | none | Toggle lost-link behaviour |
+| `0x34` | NAV_ROTATE_CW | none | Yaw right (follow) |
+| `0x35` | NAV_ROTATE_CCW | none | Yaw left (follow) |
+| `0x36` | NAV_FORWARD | none | Translate toward subject |
+| `0x37` | NAV_STRAFE_LEFT | none | Lateral left |
+| `0x38` | NAV_STRAFE_RIGHT | none | Lateral right |
+| `0x39` | NAV_HOLD | none | Hold position / attitude |
+| `0x3A` | NAV_IDLE | none | Idle / clear nav intent |
+| `0x3B` | NAV_BACKWARD | none | Retreat from subject |
+| `0x3C` | DEMO_TAKEOFF | none | Scripted bench takeoff (prototype/demo; product may map to standard takeoff) |
 
-High-level app commands that do not have a dedicated firmware opcode are mapped at the app layer:
+##### High-level app command mapping
 
-| App command | Mapped to firmware command |
-|-------------|---------------------------|
-| TAKEOFF | ARM (`0x01`) |
-| LAND | DISARM (`0x02`) |
-| HOVER | NOP (`0x00`) |
-| RETURN\_HOME | NOP (`0x00`) |
+| App command | Firmware opcode | Notes |
+|-------------|-------------------|--------|
+| ARM | `0x01` | |
+| DISARM | `0x02` | |
+| ESTOP | `0x03` | |
+| TAKEOFF | `0x3C` | Product: standard takeoff sequence on FC |
+| LAND | `0x03` | App maps to ESTOP for immediate cut; product may use DISARM + land mode |
+| HOVER | `0x01` | App maps to ARM + FC hover throttle policy |
+| RETURN_HOME | `0x00` | Reserved; product RTH TBD |
+| SET_MOTOR | `0x10`–`0x13` | Manual bench / maintenance |
+| HEARTBEAT | `0x20` | Sent periodically when BLE connected in hybrid mode |
 
 ---
 
 #### Telemetry encoding
 
-The ESP32 sends telemetry as BLE GATT notifications. The payload is a **Base64-encoded UTF-8 string**. The app decodes the Base64 then parses the resulting string in one of two formats:
-
-- **JSON** — a flat JSON object; preferred for future firmware.
-- **TEL key=value** — a space-separated list of `key=value` pairs prefixed with `TEL `.
-
-Both formats are described in full in [Section 10 — GPS and Telemetry](10_GPS_Telemetry.md).
+See [Section 10 — GPS and Telemetry](10_GPS_Telemetry.md). BLE: Base64-wrapped UTF-8 JSON or `TEL key=value`. Wi‑Fi: plain JSON text on `/gps` and `/ws`.
 
 ---
 
-#### Connection flow
+#### Connection flow (typical user session)
 
 ```
-App (Connect tab)
-  1. Scan for BLE devices (no UUID filter)
-  2. Identify "DroneBLE" in the scan list
-  3. Connect by device ID → GATT discovery
-  4. Subscribe to notifications on the characteristic
-  5. App state transitions: DISCONNECTED → CONNECTING → SECURE_LINK
-
-Drone (drone_ble firmware)
-  1. Advertise as "DroneBLE"
-  2. Accept incoming connection
-  3. Accept characteristic writes (commands)
-  4. Send GATT notifications (telemetry) to subscribed central
+1. Connect tab — join drone Wi‑Fi (Android in-app; iOS system Settings)
+2. Optional: first-time POST /wifi/provision with factory password → unique AP password stored on FC
+3. Home / app — open WSS to wss://192.168.4.1:443/ws → link = SECURE_LINK; GPS fields update
+4. Connect tab — scan BLE, tap DroneBLE → GATT notify subscribed
+5. Control / follow — commands sent on BLE; telemetry may merge from both radios
 ```
 
-The stored device ID is persisted by the app so that subsequent sessions can reconnect without a manual scan.
+Persisted BLE device ID allows reconnect without a full scan.
 
 ---
 
-#### Wi‑Fi channel
+#### Wi‑Fi access point and TLS
 
-The `drone_wifi` firmware runs a **soft access point** (`drone_wifi/softAP`). The phone connects to this network via the Wi‑Fi settings screen in the app, which uses `react-native-wifi-reborn` to scan and join the AP.
+The flight controller runs a **soft AP** (SSID/password from manufacturing or provisioning). All product HTTP/WebSocket services use **TLS on port 443** (no cleartext control on the AP).
 
-Wi‑Fi is used for camera frames and other high-bandwidth data only. All flight control remains on BLE regardless of Wi‑Fi connection state. On iOS, background Wi‑Fi scanning is not available; the user must connect manually via the system Settings app.
+| Path | Method | Purpose |
+|------|--------|---------|
+| `/` | GET | Health |
+| `/gps` | GET | One-shot telemetry JSON |
+| `/ws` | WebSocket | Streaming telemetry JSON (~5 Hz) |
+| `/stream` | GET | Video stream (MJPEG or placeholder until camera enabled) |
+| `/wifi/status` | GET | `{ "provisioned", "ssid" }` |
+| `/wifi/provision` | POST | First-time password set `{ "password", "factoryPassword" }` |
+| `/wifi/rotate-password` | POST | Change AP password (provisioned units) |
+| `/wifi/factory-reset` | POST | Restore factory Wi‑Fi credentials |
 
----
+**WebSocket rules**
 
-#### Secure Wi‑Fi telemetry (`wifi_gps_softap`)
+- **Single active client** (“last connect wins”) for telemetry.
+- **Outbound:** JSON field set per Section 10.
+- **Inbound:** Binary/text command frames may be accepted on product FC; hybrid app primarily commands over BLE today.
 
-The **`wifi_gps_softap`** firmware (`wifi_gps_softap/`) runs a **single TLS server on port 443** only (no plain HTTP on 80/81). It is an optional parallel path to BLE for GPS-related telemetry: same JSON field names as documented in [Section 10 — GPS and Telemetry](10_GPS_Telemetry.md), delivered over HTTPS and secure WebSocket instead of Base64-wrapped BLE notifications.
+**TLS trust**
 
-| Path | Method | Purpose | Notes |
-|------|--------|---------|-------|
-| `/` | GET | Health / alive check | Plain-text response |
-| `/stream` | GET | Chunked tick counter | Test / placeholder stream (`Cache-Control: no-cache`) |
-| `/gps` | GET | One-shot GPS + compass JSON | `application/json`; CORS `Access-Control-Allow-Origin: *` |
-| `/ws` | GET (Upgrade) | Secure WebSocket telemetry | JSON text frames, ~200 ms cadence (`WS_TELEM_INTERVAL_MS` in `wifi_gps_softap/main/softap_gps_main.c`) |
-
-**WebSocket behaviour**
-
-- **Single active client:** the firmware tracks one socket fd (`s_ws_client_fd`); a new connection replaces the previous one (“last connect wins”).
-- **Outbound:** telemetry JSON matches `/gps` field set (`droneGpsValid`, `droneLat`, `droneLon`, `droneGpsFixQuality`, `droneGpsSatellites`, `droneGpsHdop`, `droneHeadingDeg`).
-- **Inbound:** TEXT/BINARY frames from the phone are read and discarded today; integration with flight commands is **TBD**.
-
----
-
-#### TLS and self-signed certificate
-
-The certificate and private key are embedded at build time from:
-
-- `wifi_gps_softap/main/certs/servercert.pem`
-- `wifi_gps_softap/main/certs/prvkey.pem`
-
-(registered via `EMBED_TXTFILES` in `wifi_gps_softap/main/CMakeLists.txt`).
-
-For the default ESP-IDF soft‑AP gateway, the cert should use subject **`CN=drone-ap`** and SAN **`IP:192.168.4.1`**. Browsers and apps will warn unless the cert is trusted or pinning is configured — see [Section 12 — Mobile App Architecture](12_Mobile_App_Architecture.md) for mobile trust handling.
-
-**Verify from a laptop or phone on the drone AP:**
-
-```bash
-curl -vk https://192.168.4.1/gps
-openssl s_client -connect 192.168.4.1:443 -showcerts
-```
+The drone presents a **device-embedded certificate** (e.g. CN for local AP, SAN for AP IP `192.168.4.1`). The mobile app must pin or otherwise trust this cert (Android network security config / iOS ATS exception in development builds). Users see a browser warning if they open `https://192.168.4.1/gps` directly without trust installed.
 
 ---
 
-#### Adding new commands
+#### Adding or changing commands
 
-1. Define a new opcode in `drone_ble/main/bleprph.h` (`drone_cmd_id_t` enum).
-2. Handle the new opcode in the GATT write callback in `drone_ble/main/gatt_svr.c`.
-3. Add the opcode to `DroneCmd` and `CMD_TYPE_TO_ID` in `mobile/src/protocol/types.ts`.
-4. Add the new `Command` union variant to the `Command` type in the same file.
-5. Update `buildCommandBytes()` if the new command carries a payload.
+1. Add opcode to flight-controller command enum (firmware).
+2. Handle opcode in the GATT write path and in the flight-mode / mixer layer with failsafe checks.
+3. Add `DroneCmd` and app `Command` type in `mobile/src/protocol/types.ts`.
+4. Update `buildCommandBytes()` and any high-level mappings (Control tab, follow controller).
+
+---
+
+#### Relation to prototype builds
+
+Interim bench firmware may **log** `NAV_*` without full closed-loop flight, or expose a **demo takeoff** opcode for tethered tests. The table above is the **product contract** the app and documentation target; production PCB firmware must implement the safety-critical subset (ARM/DISARM/ESTOP, HEARTBEAT timeout, NAV execution with limits) before shipment.

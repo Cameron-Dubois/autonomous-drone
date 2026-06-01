@@ -13,3 +13,4 @@
 - [Communication Protocol](#communication-protocol)
 - [Mobile App Architecture](#mobile-app-architecture)
 - [Developer Onboarding](#developer-onboarding)
+- [Dual BLE + Wi‑Fi Operation](#dual-ble--wi-fi-operation)
