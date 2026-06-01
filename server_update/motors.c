@@ -1,6 +1,3 @@
-/*
- * motors.c
- */
 #include "motors.h"
 
 #include "driver/ledc.h"
@@ -22,9 +19,6 @@ static volatile bool s_armed = false;
 
 esp_err_t motors_init(void)
 {
-    /* One shared timer drives all four channels at the same frequency.
-     * That's what we want -- mismatched motor PWM frequencies cause
-     * audible beat noise. */
     ledc_timer_config_t tcfg = {
         .speed_mode      = LEDC_MODE,
         .timer_num       = LEDC_TIMER,
@@ -60,8 +54,6 @@ void motors_arm(bool armed)
 {
     s_armed = armed;
     if (!armed) {
-        /* Force everything to zero immediately; don't wait for the next
-         * mixer tick.  This is the failsafe path. */
         for (int i = 0; i < 4; i++) {
             ledc_set_duty(LEDC_MODE, s_chans[i], 0);
             ledc_update_duty(LEDC_MODE, s_chans[i]);

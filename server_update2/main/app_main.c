@@ -1,3 +1,14 @@
+/*
+ * app_main.c - boot orchestration only.  All real work lives in
+ * components/ (imu, motors, wifi_link, flight_task, ...).
+ *
+ * Order matters:
+ *   1. Motors first, disarmed, so a glitchy boot can't spin a prop.
+ *   2. IMU next: abort and let the watchdog reboot on failure.
+ *   3. WiFi last: bringing the link up before the IMU would mean a
+ *      pilot could send packets while the controller is uninitialized.
+ *   4. Flight task spawn -- it owns everything from here.
+ */
 #include "esp_err.h"
 #include "esp_log.h"
 
