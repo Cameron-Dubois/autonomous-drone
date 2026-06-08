@@ -2,9 +2,11 @@
 
 #### Basic Plan / Gantt Chart
 
-Roadmap exported from Jira (Feb–Apr 2026). Epics cover mobile app, hardware procurement, drone firmware, documentation, and Q2 integration work (GPS, navigation, camera stream).
+Roadmap exported from Jira (Feb–Apr 2026). Epics cover mobile app, hardware procurement, drone firmware, documentation, and Q2 integration work (GPS, navigation, camera stream). The roadmap is shown in two halves below so the task labels remain legible at print size.
 
-![Jira project roadmap](../images/jira_roadmap_2026-06-08.png)
+![Jira project roadmap (part 1 of 2)](../images/jira_roadmap_2026-06-08_part1.png)
+
+![Jira project roadmap (part 2 of 2)](../images/jira_roadmap_2026-06-08_part2.png)
 
 #### Division of Labor During Prototyping Phase
 
