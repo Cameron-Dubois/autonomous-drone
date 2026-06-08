@@ -123,7 +123,26 @@ idf.py menuconfig          # set SDA/SCL GPIO pins for your IMU wiring
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-The serial monitor will print attitude angles and PID outputs at 10 Hz. Motors will not spin until `TEST_THROTTLE` is raised above zero.
+The serial monitor will print attitude angles and PID outputs at 100 Hz. Motors will not spin until `TEST_THROTTLE` is raised above zero.
+
+---
+
+#### 6b. Hardware-in-the-loop simulation (optional)
+
+`flight_sim` runs the **same** fusion, PID, and mixer code as `flight_control`, but replaces the physical IMU and motors with a Python physics model over USB serial. You only need the ESP32‑C3 dev board — no airframe.
+
+```bash
+# Flash the HIL firmware
+cd flight_sim
+idf.py build flash
+
+# Run the physics bridge (new terminal)
+cd flight_sim/bridge
+pip install -r requirements.txt
+python bridge.py --port /dev/ttyUSB0   # use COMx on Windows
+```
+
+A live plot shows attitude and motor response. Because the control code is shared, tuning or bugs found in the sim apply directly to the real firmware. See [`flight_sim/README.md`](../../flight_sim/README.md) for CLI flags and keyboard controls.
 
 ---
 
@@ -156,6 +175,8 @@ If you change the soft‑AP gateway IP from the ESP‑IDF default (`192.168.4.1`
 
 The mobile app must use **`https://` / `wss://`** on port **443** and handle TLS trust for the embedded cert; see [Section 12 — Mobile App Architecture](12_Mobile_App_Architecture.md).
 
+This firmware also reads a **BMP280 barometer** on the shared I2C bus (address `0x76`, `SDO`→`GND`). When present, telemetry includes `altM` (relative altitude in metres) and `droneBaroOk: true`; altitude is measured relative to a baseline captured on the first successful read after boot. If the sensor is absent the build still runs and reports `droneBaroOk: false`.
+
 ---
 
 #### Repository quick reference
@@ -163,6 +184,7 @@ The mobile app must use **`https://` / `wss://`** on port **443** and handle TLS
 | Directory | What it is |
 |-----------|-----------|
 | `flight_control/` | Flight loop firmware (IMU + PID + motors) |
+| `flight_sim/` | Hardware-in-the-loop sim (shared firmware + Python physics bridge) |
 | `drone_ble/` | BLE GATT firmware (command/telemetry bridge) |
 | `drone_wifi/` | Wi‑Fi soft‑AP + HTTP server firmware |
 | `wifi_gps_softap/` | Wi‑Fi soft‑AP + GPS/compass + HTTPS / WSS (port 443) firmware |

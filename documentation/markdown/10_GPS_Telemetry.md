@@ -24,6 +24,9 @@ The app holds one `Telemetry` object (see mobile `protocol/types.ts`). Fields ar
 | `droneGpsSatellites` | `number` | Drone | Satellites in use |
 | `droneGpsHdop` | `number \| null` | Drone | Horizontal dilution of precision |
 | `droneHeadingDeg` | `number \| null` | Drone | Compass heading, degrees true; `null` if unavailable |
+| `droneBaroOk` | `boolean` | Drone | `true` when the onboard barometer is responding; `altM` is meaningful only when this is true |
+
+On the current prototype (`wifi_gps_softap`), `altM` is **relative** barometric altitude from the BMP280 (measured against a baseline captured at boot) and is reported only when `droneBaroOk` is `true`; GNSS altitude is not yet fused. The product flight controller targets baro/GNSS fusion for absolute altitude.
 
 ---
 
