@@ -65,6 +65,8 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 | WIFI-08 | First join with factory password → auto-provision | App shows new password once; drone `provisioned: true`; reconnect succeeds; telemetry on Home |
 | WIFI-09 | Wrong factory password on first provision attempt | `POST /wifi/provision` rejected; AP still uses factory password; user can retry |
 | WIFI-10 | In-app factory reset (Wi‑Fi connected) | NVS cleared; factory password works again; stored phone password cleared |
+| WIFI-11 | Hybrid link: BLE + Wi‑Fi both attached | Commands go out over BLE first; telemetry merges from both radios; `link` state owned by Wi‑Fi WebSocket |
+| WIFI-12 | Drop BLE while Wi‑Fi stays connected | Commands fall back to Wi‑Fi binary path; telemetry continues; no crash |
 
 ---
 
@@ -92,6 +94,8 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 | CTRL-07 | Send commands while disconnected | Commands blocked; UI indicates controls are inactive; no crash |
 | CTRL-08 | Measure Critical Command Dispatch Latency (tap → BLE write) | Target: ≤150ms; Max: ≤500ms  |
 | CTRL-09 | Measure Non-Critical Command Dispatch Latency (tap → BLE write) | Target: ≤500ms Max: ≤1000ms |
+| CTRL-10 | Start follow with phone + drone GNSS valid | Follow-mock emits `NAV_*` commands (e.g. `NAV_FORWARD`, `NAV_HOLD`) over BLE as navigation phase changes |
+| CTRL-11 | Follow active, walk within standoff band | App sends `NAV_HOLD`; resumes `NAV_FORWARD`/`NAV_BACKWARD` as distance crosses the band thresholds |
 
 ---
 
@@ -107,6 +111,7 @@ This document outlines the test cases, edge cases, and end-to-end scenarios for 
 | TEL-06 | Altitude display | 0–500 m; updates within 2 s of actual change |
 | TEL-07 | RSSI signal bars | 0–4 bars reflect `rssiBars` telemetry field; no flicker |
 | TEL-08 | Telemetry stops on disconnect | Values freeze/reset; no stale data displayed |
+| TEL-09 | Barometer altitude display (`altM` / `droneBaroOk`) | Relative altitude shown when `droneBaroOk` is true; muted/placeholder when false; no stale value on sensor loss |
 
 ---
 

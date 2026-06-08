@@ -21,6 +21,9 @@ The bench prototype has shown:
 | Wi‑Fi join, TLS telemetry (`/gps`, WSS) | Demonstrated |
 | Hybrid app: WSS link state + BLE-first commands | Demonstrated |
 | Drone GNSS + compass in telemetry | Demonstrated (outdoor fix dependent) |
+| BMP280 relative altitude in telemetry (`altM`) | Demonstrated (wifi_gps_softap bench) |
+| PID / attitude loop on bench (`flight_control`) | Demonstrated (props off; IMU + PID logging) |
+| Hardware-in-the-loop sim (`flight_sim` + Python bridge) | Demonstrated (desktop physics; optional) |
 | Phone-side follow navigation + intent → `NAV_*` commands | Demonstrated (app → firmware path) |
 | Closed-loop autonomous follow flight | **Not yet** — flight controller does not fully execute `NAV_*` on prototype firmware |
 | Per-motor manual throttle over BLE in unified demo build | Limited — high-level bench demo uses scripted takeoff opcode |
