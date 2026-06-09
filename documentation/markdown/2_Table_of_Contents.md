@@ -15,3 +15,4 @@
 - [Developer Onboarding](#developer-onboarding)
 - [Dual BLE + Wi‑Fi Operation](#dual-ble--wi-fi-operation)
 - [Camera Integration](#camera-integration) 
+- [Server Infrastructure](#server-infrastructure)
