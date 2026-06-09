@@ -16,7 +16,7 @@ The table below summarizes each team member's primary areas of contribution from
 | **Cameron Dubois**         | Bootstrapped the mobile app (BLE, Connect UI) and hybrid comms layer. Contributed flight-control bench work, follow-to-phone navigation, and barometer integration across app and firmware.                                  |
 | **Darin Rahm**             | Focused on drone firmware, including ESP32 BLE and WiFi connectivity, GATT command protocol, and soft-AP/TLS integration. Authored the test plan and demonstration tests.                                                    |
 | **Stephen Wend-Bell**      | Set up the GitHub repository and documentation pipeline; motor control functions and system diagrams. Integrated GPS/compass bring-up and authored technical design chapters on comms, telemetry, and mobile architecture.   |
-| **Winnie Wong**            | Handled parts research and acquisition, PCB schematic, and campus drone flight guidelines. Authored camera-integration design content and component documentation.                                                          |
+| **Winnie Wong**            | Handled parts research and acquisition, PCB schematic, server integration, and campus drone flight guidelines. Authored camera-integration design content and component documentation.                                                          |
 | **Abhiram Sai Yegalapati** | Designed and iterated the drone shell CAD model and wiring layout. Released new frame revisions as board and sensor layout changed.                                                                                          |
 
 ---
