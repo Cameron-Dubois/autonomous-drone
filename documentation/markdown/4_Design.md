@@ -46,6 +46,12 @@ A **React Native mobile application** (four tabs: Home, Connect, Control, Video)
 
 The product goal is hands-off filming: the user walks; the drone maintains a safe offset using **phone GNSS** (subject) and **drone GNSS + compass** (aircraft state). The mobile app computes navigation intent (distance, bearing, arrival) and maps it to a documented binary command set (`NAV_*` opcodes). The flight controller enforces speed limits, geofencing, and failsafes on board—control logic is not safety-critical on the phone alone.
 
+**Flight control architecture**
+
+![Two-layer flight control loop](../images/two_layer_flight_control_loop_v2.png)
+
+The diagram shows the **two-layer control model**: the phone sends follow intent over BLE (`NAV_*` opcodes); an onboard navigation executor (product design) translates intent into attitude or velocity setpoints for a **100 Hz inner loop** (IMU → complementary-filter attitude estimate → PID → X-quad motor mix). Solid lines indicate paths demonstrated on the bench; dashed lines indicate designed behavior not yet integrated on the prototype flight-controller image.
+
 **Simulations**
 
 Before and alongside flight testing, control and sensor algorithms are validated in **hardware-in-the-loop (HIL)** simulation: the same PID and motor-mixing logic runs against a software plant so tuning and regressions do not always require a tethered airframe. Physical prototypes remain essential for comms, wiring, and integration, but HIL reduces risk when extending autonomous modes.
